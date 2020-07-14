@@ -1,32 +1,32 @@
-import os
 import numpy as np
 import time
-import sys
 
 import torch
-import torch.nn as nn
 import torch.backends.cudnn as cudnn
-import torchvision
 import torchvision.transforms as transforms
 import torch.optim as optim
-import torch.nn.functional as tfunc
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-import torch.nn.functional as func
 import gc
 
 from sklearn.metrics.ranking import roc_auc_score
 
 from ClassifierModels import Resnet18
+from AEClassifierModels import AE_Resnet18
 from DatasetGenerator import DatasetGenerator
 import PIL
 
 
 def data_augmentations(resize_target, crop_target, normalization_vec, rotation_angle=None):
 
+    transformList = []
+    # optional augmentation:
+    if resize_target is not None:
+        transformList.append(transforms.Resize(resize_target))
+
     # basic augmentations:
-    transformList = [transforms.Resize(resize_target), transforms.RandomCrop(crop_target),
-                     transforms.RandomHorizontalFlip()]
+    transformList.append(transforms.RandomCrop(crop_target))
+    transformList.append(transforms.RandomHorizontalFlip())
 
     # optional augmentation
     if rotation_angle is not None:
@@ -64,8 +64,7 @@ class ModelTrainer:
         if self.architecture_type == 'RES-NET-18':
             self.model = Resnet18(self.num_classes, is_backbone_trained).to(self.device)
         elif self.architecture_type == 'AE_RES-NET-18':
-            print(self.architecture_type + " not supported yet")
-            # self.model = AE_Resnet18(num_classes, is_backbone_trained).to(self.device)
+            self.model = AE_Resnet18(self.num_classes, is_backbone_trained, None, None).to(self.device)
             return
         elif self.architecture_type == 'IMPROVED_AE_RES-NET-18':
             print(self.architecture_type + " not supported yet")
@@ -94,6 +93,8 @@ class ModelTrainer:
     def epoch_train(self, epoch_id, model, data_loader, optimizer, bce_loss, mse_loss):
         model.train()
 
+        loss_value_mean = 0
+
         for batch_id, (input_img, target_label) in enumerate(data_loader):
             target_label = target_label.to(self.device, non_blocking=True)
 
@@ -107,13 +108,18 @@ class ModelTrainer:
             loss_value.backward()
             optimizer.step()
 
-            if batch_id % (len(data_loader)//20) == 0:
-                print("----> EpochID: {}, BatchID/NumBatches: {}/{}, train loss: {}"
-                      .format(epoch_id + 1, batch_id, len(data_loader), loss_value.item()))
+            loss_value_mean += loss_value
+
+            if batch_id % (int(len(data_loader)*0.2)) == 0:
+                print("----> EpochID: {}, BatchID/NumBatches: {}/{}, mean train loss: {}"
+                      .format(epoch_id + 1, batch_id + 1, len(data_loader), loss_value_mean / (batch_id + 1)))
 
             if self.device == torch.device("cuda:0"):
                 gc.collect()
                 torch.cuda.empty_cache()
+
+        loss_value_mean /= len(data_loader)
+        print("-------> EpochID: {}, final mean train loss: {}".format(epoch_id + 1, loss_value_mean))
 
     def epoch_validation(self, model, data_loader, bce_loss, mse_loss):
         model.eval()
@@ -187,12 +193,13 @@ class ModelTrainer:
 
             self.epoch_train(epoch_id, self.model, dataLoader_train, optimizer, bce_loss, mse_loss)
             loss_val, loss_val_tensor = self.epoch_validation(self.model, dataLoader_validation, bce_loss, mse_loss)
-            
+            print("-------> EpochID: {}, mean validation loss: {}".format(epoch_id + 1, loss_val))
+
             timestampTime = time.strftime("%H%M%S")
             timestampDate = time.strftime("%d%m%Y")
             timestampEND = timestampDate + '-' + timestampTime
             
-            scheduler.step(loss_val_tensor.data[0])
+            scheduler.step(loss_val_tensor.item())
             
             if loss_val < min_loss:
                 min_loss = loss_val
@@ -222,13 +229,13 @@ class ModelTrainer:
     # ---- checkpoint - if not None loads the model and continues training
     
     def test(self, path_img_dir, path_file_test, path_trained_model,
-             batch_size, trans_resize_size, trans_crop_size, trans_rotation_angle, launch_timestamp):
+             batch_size, trans_resize_size, trans_crop_size, trans_rotation_angle):
 
         CLASS_NAMES = [ 'Atelectasis', 'Cardiomegaly', 'Effusion', 'Infiltration', 'Mass', 'Nodule', 'Pneumonia',
                         'Pneumothorax', 'Consolidation', 'Edema', 'Emphysema', 'Fibrosis', 'Pleural_Thickening',
                         'Hernia', 'Healthy']
         
-        cudnn.benchmark = True  #TODO check what is that?
+        cudnn.benchmark = True  # TODO check what is that?
 
         self.model.to(self.device)
         # model = torch.nn.DataParallel(model).cuda()

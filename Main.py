@@ -19,7 +19,8 @@ def main():
 
 def run_train():
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
     if device == torch.device("cuda:0"):
         gc.collect()
         torch.cuda.empty_cache()
@@ -34,9 +35,9 @@ def run_train():
     # ---- Paths to the files with training, validation and testing sets.
     # ---- Each file should contains pairs [path to image, output vector]
     # ---- Example: images_011/00027736_001.png 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-    path_file_train = r'D:\DL_MI_project\ChestXRay14\train_only_15_small_for_check.txt'
-    path_file_validation = r'D:\DL_MI_project\ChestXRay14\val_only_15_small_for_check.txt'
-    path_file_test = r'D:\DL_MI_project\ChestXRay14\test_final_15_small_for_check.txt'
+    path_file_train = r'D:\DL_MI_project\ChestXRay14\train_only_15.txt'
+    path_file_validation = r'D:\DL_MI_project\ChestXRay14\val_only_15.txt'
+    path_file_test = r'D:\DL_MI_project\ChestXRay14\test_final_15.txt'
     
     # ---- Neural network parameters: type of the network, is it pre-trained
     # ---- on imagenet, number of classes
@@ -45,14 +46,19 @@ def run_train():
     num_classes = 15
     
     # ---- Training settings: batch size, maximum number of epochs
-    batch_size = 4
-    max_epoch = 3
+    batch_size = 8
+    max_epoch = 5
     
     # ---- Parameters related to image transforms: size of the down-scaled image, cropped image
-    trans_resize_size = 256
-    trans_crop_size = 224
-    trans_rotation_angle = 5
-        
+    if architecture_type == RESNET18:
+        trans_resize_size = 256
+        trans_crop_size = 224
+        trans_rotation_angle = 5
+    elif architecture_type == AE_RESNET18 or architecture_type == IMPROVED_AE_RESNET18:
+        trans_resize_size = None
+        trans_crop_size = 896
+        trans_rotation_angle = 5
+
     path_saved_model = 'm-' + launch_timestamp + '.pth.tar'
     
     print ('Training NN architecture = ', architecture_type)
@@ -61,10 +67,8 @@ def run_train():
                         trans_resize_size, trans_crop_size, trans_rotation_angle, launch_timestamp, None)
     
     print ('Testing the trained model')
-    model_trainer.test(path_img_dir, path_file_test, None, num_classes,
-                       batch_size, trans_resize_size, trans_crop_size, trans_rotation_angle,
-                       launch_timestamp)
-
+    model_trainer.test(path_img_dir, path_file_test, path_saved_model,
+                       batch_size, trans_resize_size, trans_crop_size, trans_rotation_angle)
 
 def run_test():
 
@@ -75,7 +79,7 @@ def run_test():
         torch.cuda.empty_cache()
 
     path_img_dir = r'D:\DL_MI_project\ChestXRay14\images'
-    path_file_test = r'D:\DL_MI_project\ChestXRay14\test_final_14.txt'
+    path_file_test = r'D:\DL_MI_project\ChestXRay14\test_final_15.txt'
     architecture_type = RESNET18  # select from: RESNET18, AE_RESNET18, IMPROVED_AE_RESNET18
     is_backbone_pretrained = True
     num_classes = 15
@@ -85,13 +89,10 @@ def run_test():
     trans_rotation_angle = 5
     
     path_trained_model = ''
-    
-    launch_timestamp = ''
 
     model_trainer = ModelTrainer(architecture_type, is_backbone_pretrained, num_classes, device)
-    model_trainer.test(path_img_dir, path_file_test, path_trained_model, num_classes,
-                       batch_size, trans_resize_size, trans_crop_size, trans_rotation_angle,
-                       launch_timestamp)
+    model_trainer.testtest(path_img_dir, path_file_test, path_trained_model,
+                       batch_size, trans_resize_size, trans_crop_size, trans_rotation_angle)
 
 
 if __name__ == '__main__':
