@@ -109,7 +109,7 @@ class ModelTrainer:
             if self.architecture_type == 'RES-NET-18':
                 loss_value = self.bce_loss(varOutput, varTarget)
             elif self.architecture_type == 'BASIC_AE':
-                _, decoder_output = varOutput
+                encoder_output, decoder_output = varOutput
                 loss_value = self.mse_loss(decoder_output, varInput)
             elif self.architecture_type == 'AE-RES-NET-18':
                 decoder_output, classifier_output = varOutput
@@ -154,7 +154,7 @@ class ModelTrainer:
             if self.architecture_type == 'RES-NET-18':
                 loss_value = self.bce_loss(varOutput, varTarget)
             elif self.architecture_type == 'BASIC_AE':
-                _, decoder_output = varOutput
+                encoder_output, decoder_output = varOutput
                 loss_value = self.mse_loss(decoder_output, varInput)
             elif self.architecture_type == 'AE-RES-NET-18':
                 decoder_output, classifier_output = varOutput
@@ -237,7 +237,7 @@ class ModelTrainer:
                 print('Epoch [' + str(epoch_id + 1) + '] [save] [' + timestampEND + '] loss= ' + str(loss_val))
             else:
                 print('Epoch [' + str(epoch_id + 1) + '] [----] [' + timestampEND + '] loss= ' + str(loss_val))
-
+        print("finish training!")
 
     # ---- Test the trained network
     # ---- pathDirData - path to the directory that contains images

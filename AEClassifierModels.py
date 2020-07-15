@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.autograd import Function
 import torchvision.transforms as transforms
 from ClassifierModels import Resnet18
+import matplotlib.pyplot as plt
 
 
 class Relu1(Function):
@@ -37,6 +38,8 @@ class BasicAutoEncoder(nn.Module):
             # 1x224x224
         )
 
+        self.Relu1 = torch.nn.ReLU()
+
         self.decoder = nn.Sequential(
             # 1x224x224
             nn.Conv2d(in_channels=1, out_channels=16, kernel_size=3, stride=1, padding=1),
@@ -44,12 +47,15 @@ class BasicAutoEncoder(nn.Module):
             # 1x896x896
         )
 
+        self.Relu2 = torch.nn.ReLU()
+
+
     def forward(self, x):
         encoder_output = self.encoder(x)
-        encoder_output = Relu1.apply(encoder_output)
+        encoder_output = self.Relu1(encoder_output)
 
         decoder_output = self.decoder(encoder_output)
-        decoder_output = Relu1.apply(decoder_output)
+        decoder_output = self.Relu2(decoder_output)
 
         return encoder_output, decoder_output
 
