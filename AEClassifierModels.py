@@ -49,7 +49,6 @@ class BasicAutoEncoder(nn.Module):
 
         self.Relu2 = torch.nn.ReLU()
 
-
     def forward(self, x):
         encoder_output = self.encoder(x)
         encoder_output = self.Relu1(encoder_output)

@@ -15,6 +15,8 @@ from ClassifierModels import Resnet18
 from AEClassifierModels import BasicAutoEncoder, AE_Resnet18
 from DatasetGenerator import DatasetGenerator
 import PIL
+import matplotlib.pyplot as plt
+
 
 
 def data_augmentations(resize_target, crop_target, normalization_vec, rotation_angle=None):
@@ -39,6 +41,28 @@ def data_augmentations(resize_target, crop_target, normalization_vec, rotation_a
 
     transformSequence = transforms.Compose(transformList)
     return transformSequence
+
+
+def plt_data(data_train, data_val, titleStr, save_fig=False, save_dir=''):
+    fig1 = plt.figure()
+    plt.xlabel('Epoch #')
+    plt.plot(data_train, color='b', label='Train')
+    titleStr_train = titleStr + '_Train'
+    plt.title(titleStr_train)
+    plt.legend(loc='upper right')
+    if save_fig:
+        fig1.savefig(save_dir + titleStr_train + '.png', dpi=100)
+
+    fig2 = plt.figure()
+    plt.xlabel('Epoch #')
+    plt.plot(data_val, color='r', label='Validation')
+    titleStr_test = titleStr + '_Validation'
+    plt.title(titleStr_test)
+    plt.legend(loc='upper right')
+    if save_fig:
+        fig2.savefig(save_dir + titleStr_test + '.png', dpi=100)
+
+    plt.close('all')
 
 
 class ModelTrainer:
@@ -133,7 +157,7 @@ class ModelTrainer:
                 torch.cuda.empty_cache()
 
         loss_value_mean /= len(data_loader)
-        print("-------> EpochID: {}, final mean train loss: {}".format(epoch_id + 1, loss_value_mean))
+        return loss_value_mean
 
     def epoch_validation(self, model, data_loader):
         model.eval()
@@ -210,33 +234,45 @@ class ModelTrainer:
 
         # ---- TRAIN THE NETWORK
         min_loss = 100000
-        
+
+        loss_train_list = []
+        loss_validation_list = []
+
         for epoch_id in range(0, max_epochs):
             timestampTime = time.strftime("%H%M%S")
             timestampDate = time.strftime("%d%m%Y")
             timestampSTART = timestampDate + '-' + timestampTime
 
-            self.epoch_train(epoch_id, self.model, dataLoader_train, optimizer)
-            loss_val, loss_val_tensor = self.epoch_validation(self.model, dataLoader_validation)
-            print("-------> EpochID: {}, mean validation loss: {}".format(epoch_id + 1, loss_val))
+            loss_train = self.epoch_train(epoch_id, self.model, dataLoader_train, optimizer)
+            loss_validation, loss_validation_tensor = self.epoch_validation(self.model, dataLoader_validation)
+            print("-------> EpochID: {}, mean train loss: {}".format(epoch_id + 1, loss_train))
+            print("-------> EpochID: {}, mean validation loss: {}".format(epoch_id + 1, loss_validation))
+            loss_train_list.append(loss_train)
+            loss_validation_list.append(loss_validation)
+
+            if epoch_id % (round(max_epochs*0.1)) == 0:
+                plt_data(loss_train_list, loss_validation_list, "Loss_train_vs_validation_" + self.architecture_type,
+                         True, "")
+
 
             timestampTime = time.strftime("%H%M%S")
             timestampDate = time.strftime("%d%m%Y")
             timestampEND = timestampDate + '-' + timestampTime
             
-            scheduler.step(loss_val_tensor.item())
+            scheduler.step(loss_validation_tensor.item())
             
-            if loss_val < min_loss:
-                min_loss = loss_val
+            if loss_validation < min_loss:
+                min_loss = loss_validation
                 torch.save({'model_type': self.architecture_type,
                             'epoch': epoch_id + 1,
                             'state_dict': self.model.state_dict(),
                             'best_loss': min_loss,
                             'optimizer' : optimizer.state_dict()},
                            'm-' + self.architecture_type + '-' + launch_timestamp + '.pth.tar')
-                print('Epoch [' + str(epoch_id + 1) + '] [save] [' + timestampEND + '] loss= ' + str(loss_val))
+                print('Epoch [' + str(epoch_id + 1) + '] [save] [' + timestampEND + '] loss= ' + str(loss_validation))
             else:
-                print('Epoch [' + str(epoch_id + 1) + '] [----] [' + timestampEND + '] loss= ' + str(loss_val))
+                print('Epoch [' + str(epoch_id + 1) + '] [----] [' + timestampEND + '] loss= ' + str(loss_validation))
+
         print("finish training!")
 
     # ---- Test the trained network
