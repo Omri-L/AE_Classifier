@@ -28,8 +28,6 @@ class BasicAutoEncoder(nn.Module):
     def __init__(self):
         super(BasicAutoEncoder, self).__init__()
 
-        self.normalize = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-
         self.encoder = nn.Sequential(
             # 1x896x896
             nn.Conv2d(in_channels=1, out_channels=32, kernel_size=5, stride=4, padding=2),
@@ -50,15 +48,8 @@ class BasicAutoEncoder(nn.Module):
         encoder_output = self.encoder(x)
         encoder_output = Relu1.apply(encoder_output)
 
-        decoder_output = self.decoder(y)
+        decoder_output = self.decoder(encoder_output)
         decoder_output = Relu1.apply(decoder_output)
-
-        bs, c, h, w = encoder_output.shape
-        y2 = torch.Tensor(bs, 3, h, w).cuda()
-
-        for img_no in range(bs):
-            y2[img_no] = encoder_output[img_no]
-            y2[img_no] = self.normalize(y2[img_no])  # broadcasting 1 channel to 3 channels
 
         return encoder_output, decoder_output
 
@@ -69,9 +60,10 @@ class AE_Resnet18(nn.Module):
                  pre_trained_classifier_path=None, pre_trained_ae_path=None):
         super(AE_Resnet18, self).__init__()
 
+        self.num_classes = num_classes
+        self.normalize = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         self.auto_encoder = BasicAutoEncoder()
-
-        self.classifier = Resnet18(num_classes=self.classCount, is_trained=is_backbone_trained)
+        self.classifier = Resnet18(num_classes=self.num_classes, is_trained=is_backbone_trained)
 
         if pre_trained_ae_path is not None:
             self.auto_encoder.load_state_dict(torch.load(pre_trained_ae_path))
@@ -82,7 +74,15 @@ class AE_Resnet18(nn.Module):
     def forward(self, x):
 
         encoder_output, decoder_output = self.auto_encoder(x)
-        classifier_output = self.classifier(encoder_output)
+
+        bs, c, h, w = encoder_output.shape
+        latent_x = torch.Tensor(bs, 3, h, w).cuda()
+
+        for img_no in range(bs):
+            latent_x[img_no] = encoder_output[img_no]
+            latent_x[img_no] = self.normalize(latent_x[img_no])  # broadcasting 1 channel to 3 channels
+
+        classifier_output = self.classifier(latent_x)
 
         return decoder_output, classifier_output
 

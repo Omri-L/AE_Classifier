@@ -7,8 +7,10 @@ import gc
 from ModelTrainer import ModelTrainer
 
 RESNET18 = 'RES-NET-18'
+BASIC_AE = 'BASIC_AE'
 AE_RESNET18 = 'AE-RES-NET-18'
-IMPROVED_AE_RESNET18 = 'IMPROVED-AE-RES-NET-18'
+ATTENTION_AE = 'ATTENTION_AE'
+ATTENTION_AE_RESNET18 = 'IMPROVED-AE-RES-NET-18'
 
 
 def main():
@@ -19,8 +21,8 @@ def main():
 
 def run_train():
 
-    # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    device = torch.device("cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cpu")
     if device == torch.device("cuda:0"):
         gc.collect()
         torch.cuda.empty_cache()
@@ -41,30 +43,41 @@ def run_train():
     
     # ---- Neural network parameters: type of the network, is it pre-trained
     # ---- on imagenet, number of classes
-    architecture_type = RESNET18
+    # choose from: RESNET18, BASIC_AE, AE_RESNET18, ATTENTION_AE, ATTENTION_AE_RESNET18
+    architecture_type = BASIC_AE
     is_backbone_pretrained = True
     num_classes = 15
     
     # ---- Training settings: batch size, maximum number of epochs
-    batch_size = 8
-    max_epoch = 5
-    
+    batch_size = 1
+    max_epoch = 5000
+
     # ---- Parameters related to image transforms: size of the down-scaled image, cropped image
+    trans_resize_size = None
+    trans_crop_size = None
+    trans_rotation_angle = None
+    num_of_input_channels = 1
+    # parameters per architecture:
     if architecture_type == RESNET18:
+        # resize to 256 -> random crop to 224 -> random rotate [-5,5]
         trans_resize_size = 256
         trans_crop_size = 224
         trans_rotation_angle = 5
-    elif architecture_type == AE_RESNET18 or architecture_type == IMPROVED_AE_RESNET18:
-        trans_resize_size = None
+        num_of_input_channels = 3
+    elif architecture_type == BASIC_AE or architecture_type == ATTENTION_AE:
+        # random crop to 128
+        trans_crop_size = 128
+    elif architecture_type == AE_RESNET18 or architecture_type == ATTENTION_AE_RESNET18:
+        # random crop to 896 -> random rotate [-5,5]
         trans_crop_size = 896
         trans_rotation_angle = 5
 
-    path_saved_model = 'm-' + launch_timestamp + '.pth.tar'
+    path_saved_model = 'm-' + architecture_type + '-' + launch_timestamp + '.pth.tar'
     
     print ('Training NN architecture = ', architecture_type)
-    model_trainer = ModelTrainer(architecture_type, is_backbone_pretrained, num_classes, device)
-    model_trainer.train(path_img_dir, path_file_train, path_file_validation, batch_size, max_epoch,
-                        trans_resize_size, trans_crop_size, trans_rotation_angle, launch_timestamp, None)
+    model_trainer = ModelTrainer(architecture_type, num_of_input_channels, is_backbone_pretrained, num_classes, device)
+    model_trainer.train(path_img_dir, path_file_train, path_file_validation, batch_size,
+                        max_epoch, trans_resize_size, trans_crop_size, trans_rotation_angle, launch_timestamp, None)
     
     print ('Testing the trained model')
     model_trainer.test(path_img_dir, path_file_test, path_saved_model,

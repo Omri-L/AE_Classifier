@@ -11,11 +11,12 @@ class DatasetGenerator (Dataset):
     
     #-------------------------------------------------------------------------------- 
     
-    def __init__ (self, pathImageDirectory, pathDatasetFile, transform):
+    def __init__ (self, pathImageDirectory, pathDatasetFile, transform, num_img_chs=1):
     
         self.listImagePaths = []
         self.listImageLabels = []
         self.transform = transform
+        self.num_img_chs = num_img_chs
     
         #---- Open file, get image paths and labels
     
@@ -47,8 +48,12 @@ class DatasetGenerator (Dataset):
     def __getitem__(self, index):
         
         imagePath = self.listImagePaths[index]
-        
-        imageData = Image.open(imagePath).convert('RGB')
+
+        if self.num_img_chs == 3:
+            imageData = Image.open(imagePath).convert('RGB')
+        else:
+            imageData = Image.open(imagePath).convert('L')
+
         imageLabel= torch.FloatTensor(self.listImageLabels[index])
         
         if self.transform != None: imageData = self.transform(imageData)

@@ -12,7 +12,7 @@ import gc
 from sklearn.metrics.ranking import roc_auc_score
 
 from ClassifierModels import Resnet18
-from AEClassifierModels import AE_Resnet18
+from AEClassifierModels import BasicAutoEncoder, AE_Resnet18
 from DatasetGenerator import DatasetGenerator
 import PIL
 
@@ -55,23 +55,26 @@ class ModelTrainer:
     # ---- transCrop - size of the cropped image
     # ---- launchTimestamp - date/time, used to assign unique name for the checkpoint file
     # ---- checkpoint - if not None loads the model and continues training
-    def __init__(self, architecture_type, is_backbone_trained, num_classes, device):
+    def __init__(self, architecture_type, num_of_input_channels, is_backbone_trained, num_classes, device):
         self.architecture_type = architecture_type
         self.device = device
         self.num_classes = num_classes
+        self.num_of_input_channels = num_of_input_channels
 
         # -------------------- SETTINGS: NETWORK ARCHITECTURE
         if self.architecture_type == 'RES-NET-18':
             self.model = Resnet18(self.num_classes, is_backbone_trained).to(self.device)
-        elif self.architecture_type == 'AE_RES-NET-18':
+        elif self.architecture_type == 'BASIC_AE':
+            self.model = BasicAutoEncoder().to(self.device)
+        elif self.architecture_type == 'AE-RES-NET-18':
             self.model = AE_Resnet18(self.num_classes, is_backbone_trained, None, None).to(self.device)
-            return
-        elif self.architecture_type == 'IMPROVED_AE_RES-NET-18':
-            print(self.architecture_type + " not supported yet")
-            # self.model = IMPROVED_AE_Resnet18(num_classes, is_backbone_trained).to(self.device)
-            return
+        # elif self.architecture_type == 'ATTENTION_AE_RES-NET-18':
+        #     self.model = Attention_AE_Resnet18(num_classes, is_backbone_trained).to(self.device)
 
         # model = torch.nn.DataParallel(model).to(device)
+
+        self.bce_loss = torch.nn.BCELoss(reduction='mean')
+        self.mse_loss = torch.nn.MSELoss(reduction='mean')
 
     def compute_AUROC(self, gt_data, prediction):
         """
@@ -90,7 +93,7 @@ class ModelTrainer:
 
         return out_auroc
 
-    def epoch_train(self, epoch_id, model, data_loader, optimizer, bce_loss, mse_loss):
+    def epoch_train(self, epoch_id, model, data_loader, optimizer):
         model.train()
 
         loss_value_mean = 0
@@ -102,7 +105,18 @@ class ModelTrainer:
             varTarget = torch.autograd.Variable(target_label).to(self.device)
             varOutput = model(varInput)
 
-            loss_value = bce_loss(varOutput, varTarget)  # TODO: use smarter way to use the loss according to architecture
+            # TODO: use smarter way to use the loss according to architecture
+            if self.architecture_type == 'RES-NET-18':
+                loss_value = self.bce_loss(varOutput, varTarget)
+            elif self.architecture_type == 'BASIC_AE':
+                _, decoder_output = varOutput
+                loss_value = self.mse_loss(decoder_output, varInput)
+            elif self.architecture_type == 'AE-RES-NET-18':
+                decoder_output, classifier_output = varOutput
+                lambda_loss = 0.9
+                loss_bce_value = self.bce_loss(classifier_output, varTarget)
+                loss_mse_value = self.mse_loss(decoder_output, varInput)
+                loss_value = lambda_loss * loss_bce_value + (1-lambda_loss) * loss_mse_value
 
             optimizer.zero_grad()
             loss_value.backward()
@@ -121,7 +135,7 @@ class ModelTrainer:
         loss_value_mean /= len(data_loader)
         print("-------> EpochID: {}, final mean train loss: {}".format(epoch_id + 1, loss_value_mean))
 
-    def epoch_validation(self, model, data_loader, bce_loss, mse_loss):
+    def epoch_validation(self, model, data_loader):
         model.eval()
         loss_val = 0
         loss_val_norm = 0
@@ -136,10 +150,22 @@ class ModelTrainer:
             varOutput = model(varInput)
 
             # TODO: check all of the following
-            loss_tensor = bce_loss(varOutput, varTarget)  # TODO: use smarter way to use the loss according to architecture
-            loss_tensor_mean += loss_tensor
+            # TODO: use smarter way to use the loss according to architecture
+            if self.architecture_type == 'RES-NET-18':
+                loss_value = self.bce_loss(varOutput, varTarget)
+            elif self.architecture_type == 'BASIC_AE':
+                _, decoder_output = varOutput
+                loss_value = self.mse_loss(decoder_output, varInput)
+            elif self.architecture_type == 'AE-RES-NET-18':
+                decoder_output, classifier_output = varOutput
+                lambda_loss = 0.9
+                loss_bce_value = self.bce_loss(classifier_output, varTarget)
+                loss_mse_value = self.mse_loss(decoder_output, varInput)
+                loss_value = lambda_loss * loss_bce_value + (1-lambda_loss) * loss_mse_value
 
-            loss_val += loss_tensor.item()
+            loss_tensor_mean += loss_value
+
+            loss_val += loss_value.item()
             loss_val_norm += 1
 
             if self.device == torch.device("cuda:0"):
@@ -154,15 +180,18 @@ class ModelTrainer:
               max_epochs, trans_resize_size, trans_crop_size, trans_rotation_angle, launch_timestamp, checkpoint):
 
         # -------------------- SETTINGS: DATA AUGMENTATION
-        normalization_vec = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        if self.architecture_type == 'RES-NET-18':
+            normalization_vec = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        else:
+            normalization_vec = None
         transformSequence = data_augmentations(trans_resize_size, trans_crop_size,
                                                normalization_vec, trans_rotation_angle)
 
         # -------------------- SETTINGS: DATASET BUILDERS
         dataset_train = DatasetGenerator(pathImageDirectory=path_img_dir, pathDatasetFile=path_file_train,
-                                         transform=transformSequence)
+                                         transform=transformSequence, num_img_chs=self.num_of_input_channels)
         dataset_validation = DatasetGenerator(pathImageDirectory=path_img_dir, pathDatasetFile=path_file_validation,
-                                              transform=transformSequence)
+                                              transform=transformSequence, num_img_chs=self.num_of_input_channels)
               
         dataLoader_train = DataLoader(dataset=dataset_train, batch_size=batch_size,
                                       shuffle=True, num_workers=0, pin_memory=True)
@@ -172,10 +201,6 @@ class ModelTrainer:
         # -------------------- SETTINGS: OPTIMIZER & SCHEDULER  # TODO: add parameters of the optimizer
         optimizer = optim.Adam(self.model.parameters(), lr=0.0001, betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-5)
         scheduler = ReduceLROnPlateau(optimizer, factor=0.1, patience=5, mode ='min') # TODO: check what it does?
-                
-        # -------------------- SETTINGS: LOSS
-        bce_loss = torch.nn.BCELoss(reduction='mean')
-        mse_loss = torch.nn.MSELoss(reduction='mean')
 
         # ---- Load checkpoint
         if checkpoint is not None:
@@ -191,8 +216,8 @@ class ModelTrainer:
             timestampDate = time.strftime("%d%m%Y")
             timestampSTART = timestampDate + '-' + timestampTime
 
-            self.epoch_train(epoch_id, self.model, dataLoader_train, optimizer, bce_loss, mse_loss)
-            loss_val, loss_val_tensor = self.epoch_validation(self.model, dataLoader_validation, bce_loss, mse_loss)
+            self.epoch_train(epoch_id, self.model, dataLoader_train, optimizer)
+            loss_val, loss_val_tensor = self.epoch_validation(self.model, dataLoader_validation)
             print("-------> EpochID: {}, mean validation loss: {}".format(epoch_id + 1, loss_val))
 
             timestampTime = time.strftime("%H%M%S")
@@ -208,7 +233,7 @@ class ModelTrainer:
                             'state_dict': self.model.state_dict(),
                             'best_loss': min_loss,
                             'optimizer' : optimizer.state_dict()},
-                           'm-' + launch_timestamp + '.pth.tar')
+                           'm-' + self.architecture_type + '-' + launch_timestamp + '.pth.tar')
                 print('Epoch [' + str(epoch_id + 1) + '] [save] [' + timestampEND + '] loss= ' + str(loss_val))
             else:
                 print('Epoch [' + str(epoch_id + 1) + '] [----] [' + timestampEND + '] loss= ' + str(loss_val))
@@ -262,12 +287,15 @@ class ModelTrainer:
             self.model.load_state_dict(new_state_dict)
 
         # -------------------- SETTINGS: DATA AUGMENTATION
-        normalization_vec = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        if self.architecture_type == 'RES-NET-18':
+            normalization_vec = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        else:
+            normalization_vec = None
         transformSequence = data_augmentations(trans_resize_size, trans_crop_size,
                                                normalization_vec, trans_rotation_angle)
         
         dataset_test = DatasetGenerator(pathImageDirectory=path_img_dir, pathDatasetFile=path_file_test,
-                                        transform=transformSequence)
+                                        transform=transformSequence, num_img_chs=self.num_of_input_channels)
         data_loader_test = DataLoader(dataset=dataset_test, batch_size=batch_size, num_workers=0,
                                       shuffle=False, pin_memory=True)
         
@@ -286,8 +314,10 @@ class ModelTrainer:
             varInput = torch.autograd.Variable(input_img.view(-1, c, h, w).to(self.device))
             
             out = self.model(varInput)
+            if self.architecture_type != 'RES-NET-18':
+                decoder_output, out = out
+
             out_mean = out.view(bs, -1).mean(1)
-            
             out_pred = torch.cat((out_pred, out_mean.data), 0)
 
         auroc_individual = self.compute_AUROC(out_gt, out_pred)
