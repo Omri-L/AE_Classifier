@@ -37,20 +37,20 @@ def run_train():
     # ---- Paths to the files with training, validation and testing sets.
     # ---- Each file should contains pairs [path to image, output vector]
     # ---- Example: images_011/00027736_001.png 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-    path_file_train = r'D:\DL_MI_project\ChestXRay14\train_only_15.txt'
-    path_file_validation = r'D:\DL_MI_project\ChestXRay14\val_only_15.txt'
-    path_file_test = r'D:\DL_MI_project\ChestXRay14\test_final_15.txt'
+    path_file_train = r'D:\DL_MI_project\ChestXRay14\train_only_14.txt'
+    path_file_validation = r'D:\DL_MI_project\ChestXRay14\val_only_14.txt'
+    path_file_test = r'D:\DL_MI_project\ChestXRay14\test_final_14.txt'
     
     # ---- Neural network parameters: type of the network, is it pre-trained
     # ---- on imagenet, number of classes
     # choose from: RESNET18, BASIC_AE, AE_RESNET18, ATTENTION_AE, ATTENTION_AE_RESNET18
-    architecture_type = BASIC_AE
+    architecture_type = RESNET18
     is_backbone_pretrained = True
-    num_classes = 15
+    num_classes = 14
     
     # ---- Training settings: batch size, maximum number of epochs
-    batch_size = 1
-    max_epoch = 5000
+    batch_size = 16
+    max_epoch = 50
 
     # ---- Parameters related to image transforms: size of the down-scaled image, cropped image
     trans_resize_size = None
@@ -83,6 +83,7 @@ def run_train():
     model_trainer.test(path_img_dir, path_file_test, path_saved_model,
                        batch_size, trans_resize_size, trans_crop_size, trans_rotation_angle)
 
+
 def run_test():
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -95,16 +96,17 @@ def run_test():
     path_file_test = r'D:\DL_MI_project\ChestXRay14\test_final_15.txt'
     architecture_type = RESNET18  # select from: RESNET18, AE_RESNET18, IMPROVED_AE_RESNET18
     is_backbone_pretrained = True
-    num_classes = 15
-    batch_size = 4
-    trans_resize_size = 256
-    trans_crop_size = 224
-    trans_rotation_angle = 5
-    
-    path_trained_model = ''
+    num_classes = 14
+    batch_size = 16
+    trans_resize_size = None
+    trans_crop_size = 896
+    trans_rotation_angle = None
+    num_of_input_channels = 3
 
-    model_trainer = ModelTrainer(architecture_type, is_backbone_pretrained, num_classes, device)
-    model_trainer.testtest(path_img_dir, path_file_test, path_trained_model,
+    path_trained_model = None
+
+    model_trainer = ModelTrainer(architecture_type, num_of_input_channels, is_backbone_pretrained, num_classes, device)
+    model_trainer.test(path_img_dir, path_file_test, path_trained_model,
                        batch_size, trans_resize_size, trans_crop_size, trans_rotation_angle)
 
 
