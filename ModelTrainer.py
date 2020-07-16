@@ -95,7 +95,7 @@ class ModelTrainer:
         # elif self.architecture_type == 'ATTENTION_AE_RES-NET-18':
         #     self.model = Attention_AE_Resnet18(num_classes, is_backbone_trained).to(self.device)
 
-        # model = torch.nn.DataParallel(model).to(device)
+        self.model = torch.nn.DataParallel(self.model).to(self.device)
 
         self.bce_loss = torch.nn.BCELoss(reduction='mean')
         self.mse_loss = torch.nn.MSELoss(reduction='mean')
@@ -146,7 +146,7 @@ class ModelTrainer:
             loss_value.backward()
             optimizer.step()
 
-            loss_value_mean += loss_value
+            loss_value_mean += loss_value.item()
 
             if batch_id % (int(len(data_loader)*0.2)) == 0:
                 print("----> EpochID: {}, BatchID/NumBatches: {}/{}, mean train loss: {}"
@@ -166,9 +166,10 @@ class ModelTrainer:
         loss_tensor_mean = 0
 
         for i, (input_img, target_label) in enumerate(data_loader):
-            target_label = target_label.to(self.device, non_blocking=True)
+            # target_label = target_label.to(self.device, non_blocking=True)
 
-            torch.no_grad()
+            # torch.no_grad()
+            target_label = target_label.cuda(non_blocking=True)
             varInput = torch.autograd.Variable(input_img).to(self.device)
             varTarget = torch.autograd.Variable(target_label).to(self.device)
             varOutput = model(varInput)
@@ -188,7 +189,6 @@ class ModelTrainer:
                 loss_value = lambda_loss * loss_bce_value + (1-lambda_loss) * loss_mse_value
 
             loss_tensor_mean += loss_value
-
             loss_val += loss_value.item()
             loss_val_norm += 1
 
@@ -356,13 +356,12 @@ class ModelTrainer:
             out_mean = out.view(bs, -1).mean(1)
             out_pred = torch.cat((out_pred, out_mean.data), 0)
 
-        auroc_individual = self.compute_AUROC(out_gt, out_pred)
-        auroc_mean = np.array(auroc_individual).mean()
-        
-        print ('AUROC mean ', auroc_mean)
-        
-        for i in range (0, len(auroc_individual)):
-            print(CLASS_NAMES[i], ' ', auroc_individual[i])
+        if self.architecture_type != 'ATTENTION_AE' or self.architecture_type != 'BASIC_AE':
+            auroc_individual = self.compute_AUROC(out_gt, out_pred)
+            auroc_mean = np.array(auroc_individual).mean()
+            print ('AUROC mean ', auroc_mean)
+            for i in range (0, len(auroc_individual)):
+                print(CLASS_NAMES[i], ' ', auroc_individual[i])
 
         return
 
