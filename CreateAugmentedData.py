@@ -68,18 +68,18 @@ def main():
 
     # choose configuration:
     architecture_type = RESNET18
-    database_path = r'D:\DL_MI_project\ChestXRay14'
-    path_img_dir = database_path + '\\images'
-    path_file_train = database_path + '\\original_split\\train_1.txt'
-    path_file_validation = database_path + '\\original_split\\val_1.txt'
-    path_file_test = database_path + '\\original_split\\test_1.txt'
+    database_path = r'E:\AE_Classifier\dataset'
+    path_img_dir = r'E:\AE_Classifier\database'
+    path_file_train = database_path + '\\train_1.txt'
+    path_file_validation = database_path + '\\val_1.txt'
+    path_file_test = database_path + '\\test_1.txt'
     batch_size = 64
 
     trans_resize_size = None
     trans_crop_size = None
     trans_rotation_angle = None
     normalization_vec = None
-    base_path = database_path + '\\Augmented_data_' + str(architecture_type)
+    base_path = path_img_dir + '\\Augmented_data_' + str(architecture_type)
     save_data_train_path = base_path + '\\train'
     save_data_valid_path = base_path + '\\val'
     save_data_test_path = base_path + '\\test'

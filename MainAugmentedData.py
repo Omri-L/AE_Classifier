@@ -35,9 +35,9 @@ def run_train():
     launch_timestamp = timestampDate + '-' + timestampTime
     
     # ---- Path to the directory with data
-    path_file_train = r"D:\DL_MI_project\ChestXRay14\Augmented_data_RES-NET-18\train"
-    path_file_validation = r"D:\DL_MI_project\ChestXRay14\Augmented_data_RES-NET-18\val"
-    path_file_test = r"D:\DL_MI_project\ChestXRay14\Augmented_data_RES-NET-18\test"
+    path_file_train = r"E:\AE_Classifier\database\Augmented_data_RES-NET-18\train"
+    path_file_validation = r"E:\AE_Classifier\database\Augmented_data_RES-NET-18\val"
+    path_file_test = r"E:\AE_Classifier\database\Augmented_data_RES-NET-18\test"
 
     # ---- Neural network parameters: type of the network, is it pre-trained
     # ---- on imagenet, number of classes
@@ -73,8 +73,8 @@ def run_test():
     else:
         print('Using CPU')
 
-    path_file_test = r"D:\DL_MI_project\ChestXRay14\Augmented_data_RES-NET-18\test"
-    path_trained_model = r'm-RES-NET-18-17072020-154448.pth.tar'
+    path_file_test = r"E:\AE_Classifier\database\Augmented_data_RES-NET-18\test"
+    path_trained_model = None
     architecture_type = RESNET18  # select from: RESNET18, AE_RESNET18, IMPROVED_AE_RESNET18
     is_backbone_pretrained = True
     num_classes = 14
