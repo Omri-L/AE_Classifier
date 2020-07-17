@@ -18,7 +18,6 @@ import PIL
 import matplotlib.pyplot as plt
 
 
-
 def data_augmentations(resize_target, crop_target, normalization_vec, rotation_angle=None):
 
     transformList = []
@@ -95,7 +94,7 @@ class ModelTrainer:
         # elif self.architecture_type == 'ATTENTION_AE_RES-NET-18':
         #     self.model = Attention_AE_Resnet18(num_classes, is_backbone_trained).to(self.device)
 
-        self.model = torch.nn.DataParallel(self.model).to(self.device)
+        # self.model = torch.nn.DataParallel(self.model).to(self.device)
 
         self.bce_loss = torch.nn.BCELoss(reduction='mean')
         self.mse_loss = torch.nn.MSELoss(reduction='mean')
@@ -165,36 +164,34 @@ class ModelTrainer:
         loss_val_norm = 0
         loss_tensor_mean = 0
 
-        for i, (input_img, target_label) in enumerate(data_loader):
-            # target_label = target_label.to(self.device, non_blocking=True)
+        with torch.no_grad():
+            for i, (input_img, target_label) in enumerate(data_loader):
+                target_label = target_label.to(self.device, non_blocking=True)
+                varInput = torch.autograd.Variable(input_img).to(self.device)
+                varTarget = torch.autograd.Variable(target_label).to(self.device)
+                varOutput = model(varInput)
 
-            # torch.no_grad()
-            target_label = target_label.cuda(non_blocking=True)
-            varInput = torch.autograd.Variable(input_img).to(self.device)
-            varTarget = torch.autograd.Variable(target_label).to(self.device)
-            varOutput = model(varInput)
+                # TODO: check all of the following
+                # TODO: use smarter way to use the loss according to architecture
+                if self.architecture_type == 'RES-NET-18':
+                    loss_value = self.bce_loss(varOutput, varTarget)
+                elif self.architecture_type == 'BASIC_AE':
+                    encoder_output, decoder_output = varOutput
+                    loss_value = self.mse_loss(decoder_output, varInput)
+                elif self.architecture_type == 'AE-RES-NET-18':
+                    decoder_output, classifier_output = varOutput
+                    lambda_loss = 0.9
+                    loss_bce_value = self.bce_loss(classifier_output, varTarget)
+                    loss_mse_value = self.mse_loss(decoder_output, varInput)
+                    loss_value = lambda_loss * loss_bce_value + (1-lambda_loss) * loss_mse_value
 
-            # TODO: check all of the following
-            # TODO: use smarter way to use the loss according to architecture
-            if self.architecture_type == 'RES-NET-18':
-                loss_value = self.bce_loss(varOutput, varTarget)
-            elif self.architecture_type == 'BASIC_AE':
-                encoder_output, decoder_output = varOutput
-                loss_value = self.mse_loss(decoder_output, varInput)
-            elif self.architecture_type == 'AE-RES-NET-18':
-                decoder_output, classifier_output = varOutput
-                lambda_loss = 0.9
-                loss_bce_value = self.bce_loss(classifier_output, varTarget)
-                loss_mse_value = self.mse_loss(decoder_output, varInput)
-                loss_value = lambda_loss * loss_bce_value + (1-lambda_loss) * loss_mse_value
+                loss_tensor_mean += loss_value
+                loss_val += loss_value.item()
+                loss_val_norm += 1
 
-            loss_tensor_mean += loss_value
-            loss_val += loss_value.item()
-            loss_val_norm += 1
-
-            if self.device == torch.device("cuda:0"):
-                gc.collect()
-                torch.cuda.empty_cache()
+                if self.device == torch.device("cuda:0"):
+                    gc.collect()
+                    torch.cuda.empty_cache()
 
         out_loss = loss_val / loss_val_norm
         loss_tensor_mean = loss_tensor_mean / loss_val_norm
@@ -294,7 +291,7 @@ class ModelTrainer:
 
         CLASS_NAMES = [ 'Atelectasis', 'Cardiomegaly', 'Effusion', 'Infiltration', 'Mass', 'Nodule', 'Pneumonia',
                         'Pneumothorax', 'Consolidation', 'Edema', 'Emphysema', 'Fibrosis', 'Pleural_Thickening',
-                        'Hernia', 'Healthy']
+                        'Hernia']
         
         cudnn.benchmark = True  # TODO check what is that?
 

@@ -26,20 +26,23 @@ def run_train():
     if device == torch.device("cuda:0"):
         gc.collect()
         torch.cuda.empty_cache()
+        print('Using GPU')
+    else:
+        print('Using CPU')
 
     timestampTime = time.strftime("%H%M%S")
     timestampDate = time.strftime("%d%m%Y")
     launch_timestamp = timestampDate + '-' + timestampTime
     
     # ---- Path to the directory with images
-    path_img_dir = r'D:\DL_MI_project\ChestXRay14\images'
+    path_img_dir = r'E:\AE_Classifier\database'
     
     # ---- Paths to the files with training, validation and testing sets.
     # ---- Each file should contains pairs [path to image, output vector]
     # ---- Example: images_011/00027736_001.png 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-    path_file_train = r'D:\DL_MI_project\ChestXRay14\train_only_14.txt'
-    path_file_validation = r'D:\DL_MI_project\ChestXRay14\val_only_14.txt'
-    path_file_test = r'D:\DL_MI_project\ChestXRay14\test_final_14.txt'
+    path_file_train = r"E:\AE_Classifier\dataset\train_1.txt"
+    path_file_validation = r"E:\AE_Classifier\dataset\val_1.txt"
+    path_file_test = r'E:\AE_Classifier\dataset\test_1.txt'
     
     # ---- Neural network parameters: type of the network, is it pre-trained
     # ---- on imagenet, number of classes
@@ -49,9 +52,9 @@ def run_train():
     num_classes = 14
     
     # ---- Training settings: batch size, maximum number of epochs
-    batch_size = 16
+    batch_size = 32
     max_epoch = 50
-
+    
     # ---- Parameters related to image transforms: size of the down-scaled image, cropped image
     trans_resize_size = None
     trans_crop_size = None
