@@ -112,12 +112,15 @@ class ModelTrainer:
         np_prediction = prediction.cpu().numpy()
 
         for i in range(self.num_classes):
-            out_auroc.append(roc_auc_score(np_gt_data[:, i], np_prediction[:]))
+            if len(np.unique(np_gt_data[:, i])) != 2:
+                out_auroc.append(-1)  # error, no data with that class!
+            else:
+                out_auroc.append(roc_auc_score(np_gt_data[:, i], np_prediction[:]))
 
         return out_auroc
 
-    def epoch_train(self, epoch_id, model, data_loader, optimizer):
-        model.train()
+    def epoch_train(self, epoch_id, data_loader, optimizer):
+        self.model.train()
 
         loss_value_mean = 0
 
@@ -126,7 +129,7 @@ class ModelTrainer:
 
             varInput = torch.autograd.Variable(input_img).to(self.device)
             varTarget = torch.autograd.Variable(target_label).to(self.device)
-            varOutput = model(varInput)
+            varOutput = self.model(varInput)
 
             # TODO: use smarter way to use the loss according to architecture
             if self.architecture_type == 'RES-NET-18':
@@ -158,18 +161,18 @@ class ModelTrainer:
         loss_value_mean /= len(data_loader)
         return loss_value_mean
 
-    def epoch_validation(self, model, data_loader):
-        model.eval()
+    def epoch_validation(self, data_loader):
+        self.model.eval()
         loss_val = 0
         loss_val_norm = 0
         loss_tensor_mean = 0
 
         with torch.no_grad():
-            for i, (input_img, target_label) in enumerate(data_loader):
+            for batch_id, (input_img, target_label) in enumerate(data_loader):
                 target_label = target_label.to(self.device, non_blocking=True)
                 varInput = torch.autograd.Variable(input_img).to(self.device)
                 varTarget = torch.autograd.Variable(target_label).to(self.device)
-                varOutput = model(varInput)
+                varOutput = self.model(varInput)
 
                 # TODO: check all of the following
                 # TODO: use smarter way to use the loss according to architecture
@@ -240,17 +243,16 @@ class ModelTrainer:
             timestampDate = time.strftime("%d%m%Y")
             timestampSTART = timestampDate + '-' + timestampTime
 
-            loss_train = self.epoch_train(epoch_id, self.model, dataLoader_train, optimizer)
-            loss_validation, loss_validation_tensor = self.epoch_validation(self.model, dataLoader_validation)
+            loss_train = self.epoch_train(epoch_id, dataLoader_train, optimizer)
+            loss_validation, loss_validation_tensor = self.epoch_validation(dataLoader_validation)
             print("-------> EpochID: {}, mean train loss: {}".format(epoch_id + 1, loss_train))
             print("-------> EpochID: {}, mean validation loss: {}".format(epoch_id + 1, loss_validation))
             loss_train_list.append(loss_train)
             loss_validation_list.append(loss_validation)
 
-            if epoch_id % (round(max_epochs*0.1)) == 0:
+            if epoch_id % (round(max_epochs*0.1)+1) == 0:
                 plt_data(loss_train_list, loss_validation_list, "Loss_train_vs_validation_" + self.architecture_type,
                          True, "")
-
 
             timestampTime = time.strftime("%H%M%S")
             timestampDate = time.strftime("%d%m%Y")
@@ -325,7 +327,7 @@ class ModelTrainer:
         else:
             normalization_vec = None
         transformSequence = data_augmentations(trans_resize_size, trans_crop_size,
-                                               normalization_vec, trans_rotation_angle)
+                                               normalization_vec, None)
         
         dataset_test = DatasetGenerator(pathImageDirectory=path_img_dir, pathDatasetFile=path_file_test,
                                         transform=transformSequence, num_img_chs=self.num_of_input_channels)
@@ -336,22 +338,24 @@ class ModelTrainer:
         out_pred = torch.FloatTensor().to(self.device)
        
         self.model.eval()
-        for i, (input_img, target) in enumerate(data_loader_test):
-            
-            target = target.to(self.device)
-            out_gt = torch.cat((out_gt, target), 0)
-            
-            bs, c, h, w = input_img.size()
+        with torch.no_grad():
+            for batch_id, (input_img, target) in enumerate(data_loader_test):
 
-            torch.no_grad()
-            varInput = torch.autograd.Variable(input_img.view(-1, c, h, w).to(self.device))
-            
-            out = self.model(varInput)
-            if self.architecture_type != 'RES-NET-18':
-                decoder_output, out = out
+                target = target.to(self.device)
+                out_gt = torch.cat((out_gt, target), 0)
 
-            out_mean = out.view(bs, -1).mean(1)
-            out_pred = torch.cat((out_pred, out_mean.data), 0)
+                bs, c, h, w = input_img.size()
+                varInput = torch.autograd.Variable(input_img.view(-1, c, h, w).to(self.device))
+
+                out = self.model(varInput)
+                if self.architecture_type == 'BASIC_AE':
+                    encoder_output, decoder_output = out
+                elif self.architecture_type == 'AE-RES-NET-18':
+                    decoder_output, classifier_output = out
+
+                if self.architecture_type == 'RES-NET-18' or self.architecture_type == 'AE-RES-NET-18':
+                    out_mean = out.view(bs, -1).mean(1)
+                    out_pred = torch.cat((out_pred, out_mean.data), 0)
 
         if self.architecture_type != 'ATTENTION_AE' or self.architecture_type != 'BASIC_AE':
             auroc_individual = self.compute_AUROC(out_gt, out_pred)
