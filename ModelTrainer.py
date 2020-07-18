@@ -125,6 +125,7 @@ class ModelTrainer:
         loss_value_mean = 0
 
         for batch_id, (input_img, target_label) in enumerate(data_loader):
+            input_img = input_img.to(self.device, non_blocking=True)
             target_label = target_label.to(self.device, non_blocking=True)
 
             varInput = torch.autograd.Variable(input_img).to(self.device)
@@ -150,13 +151,13 @@ class ModelTrainer:
 
             loss_value_mean += loss_value.item()
 
-            if batch_id % (int(len(data_loader)*0.2)) == 0:
+            if batch_id % (int(len(data_loader)*0.01)) == 0:
                 print("----> EpochID: {}, BatchID/NumBatches: {}/{}, mean train loss: {}"
                       .format(epoch_id + 1, batch_id + 1, len(data_loader), loss_value_mean / (batch_id + 1)))
 
             # if self.device == torch.device("cuda:0"):
-            #     gc.collect()
-            #     torch.cuda.empty_cache()
+            #    gc.collect()
+            #    torch.cuda.empty_cache()
 
         loss_value_mean /= len(data_loader)
         return loss_value_mean
@@ -170,12 +171,12 @@ class ModelTrainer:
         with torch.no_grad():
             self.model.eval()
             for batch_id, (input_img, target_label) in enumerate(data_loader):
+                input_img = input_img.to(self.device, non_blocking=True)
                 target_label = target_label.to(self.device, non_blocking=True)
                 varInput = torch.autograd.Variable(input_img).to(self.device)
                 varTarget = torch.autograd.Variable(target_label).to(self.device)
                 varOutput = self.model(varInput)
 
-                # TODO: check all of the following
                 # TODO: use smarter way to use the loss according to architecture
                 if self.architecture_type == 'RES-NET-18':
                     loss_value = self.bce_loss(varOutput, varTarget)
@@ -194,8 +195,8 @@ class ModelTrainer:
                 loss_val_norm += 1
 
                 # if self.device == torch.device("cuda:0"):
-                #     gc.collect()
-                #     torch.cuda.empty_cache()
+                #    gc.collect()
+                #    torch.cuda.empty_cache()
 
         out_loss = loss_val / loss_val_norm
         loss_tensor_mean = loss_tensor_mean / loss_val_norm
@@ -219,13 +220,13 @@ class ModelTrainer:
                                               transform=transformSequence, num_img_chs=self.num_of_input_channels)
               
         dataLoader_train = DataLoader(dataset=dataset_train, batch_size=batch_size,
-                                      shuffle=True, num_workers=0, pin_memory=True)
+                                      shuffle=True, num_workers=8, pin_memory=True)
         dataLoader_validation = DataLoader(dataset=dataset_validation, batch_size=batch_size,
-                                           shuffle=False, num_workers=0, pin_memory=True)
+                                           shuffle=False, num_workers=8, pin_memory=True)
         
         # -------------------- SETTINGS: OPTIMIZER & SCHEDULER  # TODO: add parameters of the optimizer
-        optimizer = optim.Adam(self.model.parameters(), lr=0.0001, betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-3)
-        scheduler = ReduceLROnPlateau(optimizer, factor=0.1, patience=5, mode ='min') # TODO: check what it does?
+        optimizer = optim.Adam(self.model.parameters(), lr=0.0001, betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-5)
+        scheduler = ReduceLROnPlateau(optimizer, factor=0.1, patience=5, mode ='min')
 
         # ---- Load checkpoint
         if checkpoint is not None:

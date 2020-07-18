@@ -152,24 +152,25 @@ class ModelTrainer:
 
             loss_value_mean += loss_value.item()
 
-            if batch_id % (int(len(dataloader_train)*0.2)) == 0:
+            if batch_id % (int(len(dataloader_train)*0.01)) == 0:
                 print("----> EpochID: {}, BatchID/NumBatches: {}/{}, mean train loss: {}"
                       .format(epoch_id + 1, batch_id + 1, len(dataloader_train), loss_value_mean / (batch_id + 1)))
 
-            if self.device == torch.device("cuda:0"):
-                gc.collect()
-                torch.cuda.empty_cache()
+            # if self.device == torch.device("cuda:0"):
+            #    gc.collect()
+            #    torch.cuda.empty_cache()
 
         loss_value_mean /= len(dataloader_train)
         return loss_value_mean
 
     def epoch_validation(self, dataloader_validation):
-        self.model.eval()
+
         loss_val = 0
         loss_val_norm = 0
         loss_tensor_mean = 0
 
         with torch.no_grad():
+            self.model.eval()
             for batch_id, (input_img, target_label) in enumerate(dataloader_validation):
                 input_img = input_img.to(self.device, non_blocking=True)
                 target_label = target_label.to(self.device, non_blocking=True)
@@ -194,9 +195,9 @@ class ModelTrainer:
                 loss_val += loss_value.item()
                 loss_val_norm += 1
 
-                if self.device == torch.device("cuda:0"):
-                    gc.collect()
-                    torch.cuda.empty_cache()
+                # if self.device == torch.device("cuda:0"):
+                #    gc.collect()
+                #    torch.cuda.empty_cache()
 
         out_loss = loss_val / loss_val_norm
         loss_tensor_mean = loss_tensor_mean / loss_val_norm
@@ -205,7 +206,7 @@ class ModelTrainer:
     def train(self, path_file_train, path_file_validation, batch_size, max_epochs, launch_timestamp, checkpoint):
 
         # -------------------- SETTINGS: OPTIMIZER & SCHEDULER  # TODO: add parameters of the optimizer
-        optimizer = optim.Adam(self.model.parameters(), lr=0.0001, betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-5)
+        optimizer = optim.Adam(self.model.parameters(), lr=0.0001, betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-3)
         scheduler = ReduceLROnPlateau(optimizer, factor=0.1, patience=5, mode ='min')
 
         # -------------------- SETTINGS: DATASET BUILDERS
@@ -213,9 +214,9 @@ class ModelTrainer:
         dataset_validation = DatasetGeneratorAugTensors(path_to_tensor_files=path_file_validation)
 
         dataLoader_train = DataLoader(dataset=dataset_train, batch_size=batch_size,
-                                      shuffle=True, num_workers=0)
+                                      shuffle=True, num_workers=8)
         dataLoader_validation = DataLoader(dataset=dataset_validation, batch_size=batch_size,
-                                           shuffle=False, num_workers=0)
+                                           shuffle=False, num_workers=8)
 
 
         # ---- Load checkpoint
