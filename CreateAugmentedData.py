@@ -7,7 +7,7 @@ from DatasetGenerator import DatasetGenerator
 import PIL
 
 
-def data_augmentations(resize_target, crop_target, normalization_vec, rotation_angle=None):
+def data_augmentations(resize_target, crop_target, normalization_vec, randomHorizontal=False, rotation_angle=None):
 
     transformList = []
     # optional augmentation:
@@ -16,7 +16,8 @@ def data_augmentations(resize_target, crop_target, normalization_vec, rotation_a
 
     # basic augmentations:
     transformList.append(transforms.CenterCrop(crop_target))
-    transformList.append(transforms.RandomHorizontalFlip())
+    if randomHorizontal:
+        transformList.append(transforms.RandomHorizontalFlip())
 
     # optional augmentation
     if rotation_angle is not None:
@@ -35,13 +36,16 @@ def create_dataset(path_img_dir, path_file_train, path_file_validation, batch_si
                    trans_resize_size, trans_crop_size, trans_rotation_angle, normalization_vec,
                    save_data_train_path, save_data_val_path, device, num_of_input_channels):
 
-    transformSequence = data_augmentations(trans_resize_size, trans_crop_size, normalization_vec, trans_rotation_angle)
+    transformSequenceTrain = data_augmentations(trans_resize_size, trans_crop_size, normalization_vec,
+                                                True, trans_rotation_angle)
+    transformSequenceValidation = data_augmentations(trans_resize_size, trans_crop_size, normalization_vec,
+                                                     False, None)
 
     # -------------------- SETTINGS: DATASET BUILDERS
     dataset_train = DatasetGenerator(pathImageDirectory=path_img_dir, pathDatasetFile=path_file_train,
-                                        transform=transformSequence, num_img_chs=num_of_input_channels)
+                                        transform=transformSequenceTrain, num_img_chs=num_of_input_channels)
     dataset_validation = DatasetGenerator(pathImageDirectory=path_img_dir, pathDatasetFile=path_file_validation,
-                                            transform=transformSequence, num_img_chs=num_of_input_channels)
+                                            transform=transformSequenceValidation, num_img_chs=num_of_input_channels)
 
     dataLoader_train = DataLoader(dataset=dataset_train, batch_size=batch_size,
                                   shuffle=False, num_workers=0, pin_memory=True)
