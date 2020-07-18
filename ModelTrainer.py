@@ -154,20 +154,21 @@ class ModelTrainer:
                 print("----> EpochID: {}, BatchID/NumBatches: {}/{}, mean train loss: {}"
                       .format(epoch_id + 1, batch_id + 1, len(data_loader), loss_value_mean / (batch_id + 1)))
 
-            if self.device == torch.device("cuda:0"):
-                gc.collect()
-                torch.cuda.empty_cache()
+            # if self.device == torch.device("cuda:0"):
+            #     gc.collect()
+            #     torch.cuda.empty_cache()
 
         loss_value_mean /= len(data_loader)
         return loss_value_mean
 
     def epoch_validation(self, data_loader):
-        self.model.eval()
+
         loss_val = 0
         loss_val_norm = 0
         loss_tensor_mean = 0
 
         with torch.no_grad():
+            self.model.eval()
             for batch_id, (input_img, target_label) in enumerate(data_loader):
                 target_label = target_label.to(self.device, non_blocking=True)
                 varInput = torch.autograd.Variable(input_img).to(self.device)
@@ -192,9 +193,9 @@ class ModelTrainer:
                 loss_val += loss_value.item()
                 loss_val_norm += 1
 
-                if self.device == torch.device("cuda:0"):
-                    gc.collect()
-                    torch.cuda.empty_cache()
+                # if self.device == torch.device("cuda:0"):
+                #     gc.collect()
+                #     torch.cuda.empty_cache()
 
         out_loss = loss_val / loss_val_norm
         loss_tensor_mean = loss_tensor_mean / loss_val_norm
@@ -223,7 +224,7 @@ class ModelTrainer:
                                            shuffle=False, num_workers=0, pin_memory=True)
         
         # -------------------- SETTINGS: OPTIMIZER & SCHEDULER  # TODO: add parameters of the optimizer
-        optimizer = optim.Adam(self.model.parameters(), lr=0.0001, betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-5)
+        optimizer = optim.Adam(self.model.parameters(), lr=0.0001, betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-3)
         scheduler = ReduceLROnPlateau(optimizer, factor=0.1, patience=5, mode ='min') # TODO: check what it does?
 
         # ---- Load checkpoint
@@ -231,6 +232,20 @@ class ModelTrainer:
             modelCheckpoint = torch.load(checkpoint)
             self.model.load_state_dict(modelCheckpoint['state_dict'])
             optimizer.load_state_dict(modelCheckpoint['optimizer'])
+        #
+        # if checkpoint is not None:
+        #     modelCheckpoint = torch.load(checkpoint)
+        #     optimizer.load_state_dict(modelCheckpoint['optimizer'])
+        #
+        #     state_dict = modelCheckpoint['state_dict']
+        #     from collections import OrderedDict
+        #     new_state_dict = OrderedDict()
+        #
+        #     for k, v in state_dict.items():
+        #         k = 'module.' + k
+        #         new_state_dict[k] = v
+        #     self.model.load_state_dict(new_state_dict)
+
 
         # ---- TRAIN THE NETWORK
         min_loss = 100000
