@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import gc
 
-from sklearn.metrics.ranking import roc_auc_score
+from sklearn.metrics import roc_auc_score
 
 from ClassifierModels import Resnet18
 from AEClassifierModels import BasicAutoEncoder, AE_Resnet18
@@ -47,21 +47,12 @@ def plt_data(data_train, data_val, titleStr, save_fig=False, save_dir=''):
     fig1 = plt.figure()
     plt.xlabel('Epoch #')
     plt.plot(data_train, color='b', label='Train')
+    plt.plot(data_val, color='r', label='Validation')
     titleStr_train = titleStr + '_Train'
     plt.title(titleStr_train)
     plt.legend(loc='upper right')
     if save_fig:
         fig1.savefig(save_dir + titleStr_train + '.png', dpi=100)
-
-    fig2 = plt.figure()
-    plt.xlabel('Epoch #')
-    plt.plot(data_val, color='r', label='Validation')
-    titleStr_test = titleStr + '_Validation'
-    plt.title(titleStr_test)
-    plt.legend(loc='upper right')
-    if save_fig:
-        fig2.savefig(save_dir + titleStr_test + '.png', dpi=100)
-
     plt.close('all')
 
 
@@ -98,7 +89,7 @@ class ModelTrainer:
         #     self.model = Attention_AE_Resnet18(num_classes, is_backbone_trained).to(self.device)
 
         # self.model = torch.nn.DataParallel(self.model).to(self.device)
-
+        self.model = torch.nn.DataParallel(self.model).cuda()
         self.bce_loss = torch.nn.BCELoss(reduction='mean')
         self.mse_loss = torch.nn.MSELoss(reduction='mean')
 
@@ -126,10 +117,8 @@ class ModelTrainer:
         self.model.train()
 
         loss_value_mean = 0
-
         for batch_id, (input_img, target_label) in enumerate(data_loader):
             target_label = target_label.to(self.device, non_blocking=True)
-
             varInput = torch.autograd.Variable(input_img).to(self.device)
             varTarget = torch.autograd.Variable(target_label).to(self.device)
             varOutput = self.model(varInput)
@@ -146,32 +135,25 @@ class ModelTrainer:
                 loss_bce_value = self.bce_loss(classifier_output, varTarget)
                 loss_mse_value = self.mse_loss(decoder_output, varInput)
                 loss_value = lambda_loss * loss_bce_value + (1-lambda_loss) * loss_mse_value
-
+            loss_value_mean += loss_value.item()
             optimizer.zero_grad()
             loss_value.backward()
             optimizer.step()
-
-            loss_value_mean += loss_value.item()
 
             if batch_id % (int(len(data_loader)*0.2)) == 0:
                 print("----> EpochID: {}, BatchID/NumBatches: {}/{}, mean train loss: {}"
                       .format(epoch_id + 1, batch_id + 1, len(data_loader), loss_value_mean / (batch_id + 1)))
 
-            # if self.device == torch.device("cuda:0"):
-            #     gc.collect()
-            #     torch.cuda.empty_cache()
-
         loss_value_mean /= len(data_loader)
         return loss_value_mean
 
     def epoch_validation(self, data_loader):
-
+        self.model.eval()
         loss_val = 0
         loss_val_norm = 0
         loss_tensor_mean = 0
 
         with torch.no_grad():
-            self.model.eval()
             for batch_id, (input_img, target_label) in enumerate(data_loader):
                 target_label = target_label.to(self.device, non_blocking=True)
                 varInput = torch.autograd.Variable(input_img).to(self.device)
@@ -196,17 +178,13 @@ class ModelTrainer:
                 loss_val += loss_value.item()
                 loss_val_norm += 1
 
-                # if self.device == torch.device("cuda:0"):
-                #     gc.collect()
-                #     torch.cuda.empty_cache()
-
         out_loss = loss_val / loss_val_norm
         loss_tensor_mean = loss_tensor_mean / loss_val_norm
         return out_loss, loss_tensor_mean
 
     def train(self, path_img_dir, path_file_train, path_file_validation, batch_size,
               max_epochs, trans_resize_size, trans_crop_size, trans_rotation_angle, launch_timestamp, checkpoint):
-
+        s=time.time()
         # -------------------- SETTINGS: DATA AUGMENTATION
         if self.architecture_type == 'RES-NET-18':
             normalization_vec = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
@@ -215,19 +193,24 @@ class ModelTrainer:
         transformSequence = data_augmentations(trans_resize_size, trans_crop_size,
                                                normalization_vec, trans_rotation_angle)
 
+        trans_resize_size = 256
+        trans_crop_size = 224
+        trans_rotation_angle = None
+        transformSequence_val = data_augmentations(trans_resize_size, trans_crop_size,
+                                               normalization_vec, trans_rotation_angle)
         # -------------------- SETTINGS: DATASET BUILDERS
         dataset_train = DatasetGenerator(pathImageDirectory=path_img_dir, pathDatasetFile=path_file_train,
                                          transform=transformSequence, num_img_chs=self.num_of_input_channels)
         dataset_validation = DatasetGenerator(pathImageDirectory=path_img_dir, pathDatasetFile=path_file_validation,
-                                              transform=transformSequence, num_img_chs=self.num_of_input_channels)
+                                              transform=transformSequence_val, num_img_chs=self.num_of_input_channels)
               
         dataLoader_train = DataLoader(dataset=dataset_train, batch_size=batch_size,
-                                      shuffle=True, num_workers=0, pin_memory=True)
+                                      shuffle=True, num_workers=8, pin_memory=True)
         dataLoader_validation = DataLoader(dataset=dataset_validation, batch_size=batch_size,
-                                           shuffle=False, num_workers=0, pin_memory=True)
+                                           shuffle=False, num_workers=8, pin_memory=True)
         
         # -------------------- SETTINGS: OPTIMIZER & SCHEDULER  # TODO: add parameters of the optimizer
-        optimizer = optim.Adam(self.model.parameters(), lr=0.0001, betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-3)
+        optimizer = optim.Adam(self.model.parameters(), lr=0.0001, betas=(0.9, 0.999), eps=1e-08, weight_decay=5e-4)
         scheduler = ReduceLROnPlateau(optimizer, factor=0.1, patience=5, mode ='min') # TODO: check what it does?
 
         # ---- Load checkpoint
@@ -235,34 +218,24 @@ class ModelTrainer:
             modelCheckpoint = torch.load(checkpoint)
             self.model.load_state_dict(modelCheckpoint['state_dict'])
             optimizer.load_state_dict(modelCheckpoint['optimizer'])
-        #
-        # if checkpoint is not None:
-        #     modelCheckpoint = torch.load(checkpoint)
-        #     optimizer.load_state_dict(modelCheckpoint['optimizer'])
-        #
-        #     state_dict = modelCheckpoint['state_dict']
-        #     from collections import OrderedDict
-        #     new_state_dict = OrderedDict()
-        #
-        #     for k, v in state_dict.items():
-        #         k = 'module.' + k
-        #         new_state_dict[k] = v
-        #     self.model.load_state_dict(new_state_dict)
-
 
         # ---- TRAIN THE NETWORK
         min_loss = 100000
 
         loss_train_list = []
         loss_validation_list = []
+        print('init timing: ', time.time()-s)
 
         for epoch_id in range(0, max_epochs):
             timestampTime = time.strftime("%H%M%S")
             timestampDate = time.strftime("%d%m%Y")
             timestampSTART = timestampDate + '-' + timestampTime
-
+            s = time.time()
             loss_train = self.epoch_train(epoch_id, dataLoader_train, optimizer)
+            print('train epoch time: ', time.time()-s)
+            s = time.time()
             loss_validation, loss_validation_tensor = self.epoch_validation(dataLoader_validation)
+            print('val epoch time: ', time.time() - s)
             print("-------> EpochID: {}, mean train loss: {}".format(epoch_id + 1, loss_train))
             print("-------> EpochID: {}, mean validation loss: {}".format(epoch_id + 1, loss_validation))
             loss_train_list.append(loss_train)
@@ -284,7 +257,9 @@ class ModelTrainer:
                             'epoch': epoch_id + 1,
                             'state_dict': self.model.state_dict(),
                             'best_loss': min_loss,
-                            'optimizer' : optimizer.state_dict()},
+                            'optimizer' : optimizer.state_dict(),
+                            'loss_train_list' : loss_train_list,
+                            'loss_validation_list' : loss_validation_list},
                            'm-' + self.architecture_type + '-' + launch_timestamp + '.pth.tar')
                 print('Epoch [' + str(epoch_id + 1) + '] [save] [' + timestampEND + '] loss= ' + str(loss_validation))
             else:
@@ -316,28 +291,28 @@ class ModelTrainer:
         cudnn.benchmark = True  # TODO check what is that?
 
         self.model.to(self.device)
-        # model = torch.nn.DataParallel(model).cuda()
+        # self.model = torch.nn.DataParallel(self.model).cuda()
         # fix from: https://github.com/bearpaw/pytorch-classification/issues/27
         if path_trained_model is not None:
             modelCheckpoint = torch.load(path_trained_model)
             # model.load_state_dict(modelCheckpoint['state_dict'])
 
             state_dict = modelCheckpoint['state_dict']
-            from collections import OrderedDict
-            new_state_dict = OrderedDict()
-
-            for k, v in state_dict.items():
-                if 'module.' in k:
-                    k = k.replace('module.densenet121', 'densenet121')
-                if 'norm.1' or 'norm.2' in k:
-                    k = k.replace('norm.1', 'norm1')
-                    k = k.replace('norm.2', 'norm2')
-                if 'conv.1' or 'conv.2' in k:
-                    k = k.replace('conv.1', 'conv1')
-                    k = k.replace('conv.2', 'conv2')
-                new_state_dict[k] = v
-
-            self.model.load_state_dict(new_state_dict)
+            # from collections import OrderedDict
+            # new_state_dict = OrderedDict()
+            #
+            # for k, v in state_dict.items():
+            #     if 'module.' in k:
+            #         k = k.replace('module.densenet121', 'densenet121')
+            #     if 'norm.1' or 'norm.2' in k:
+            #         k = k.replace('norm.1', 'norm1')
+            #         k = k.replace('norm.2', 'norm2')
+            #     if 'conv.1' or 'conv.2' in k:
+            #         k = k.replace('conv.1', 'conv1')
+            #         k = k.replace('conv.2', 'conv2')
+            #     new_state_dict[k] = v
+            #
+            # self.model.load_state_dict(new_state_dict)
 
         # -------------------- SETTINGS: DATA AUGMENTATION
         if self.architecture_type == 'RES-NET-18':
@@ -349,7 +324,7 @@ class ModelTrainer:
         
         dataset_test = DatasetGenerator(pathImageDirectory=path_img_dir, pathDatasetFile=path_file_test,
                                         transform=transformSequence, num_img_chs=self.num_of_input_channels)
-        data_loader_test = DataLoader(dataset=dataset_test, batch_size=batch_size, num_workers=0,
+        data_loader_test = DataLoader(dataset=dataset_test, batch_size=batch_size, num_workers=10,
                                       shuffle=False, pin_memory=True)
         
         out_gt = torch.FloatTensor().to(self.device)
