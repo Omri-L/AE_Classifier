@@ -13,6 +13,7 @@ from sklearn.metrics.ranking import roc_auc_score
 
 from ClassifierModels import Resnet18
 from AEClassifierModels import BasicAutoEncoder, AE_Resnet18
+from AttentionUnetModel import AttentionUnet2D
 from DatasetGenerator import DatasetGenerator
 import PIL
 import matplotlib.pyplot as plt
@@ -89,6 +90,8 @@ class ModelTrainer:
             self.model = Resnet18(self.num_classes, is_backbone_trained).to(self.device)
         elif self.architecture_type == 'BASIC_AE':
             self.model = BasicAutoEncoder().to(self.device)
+        elif self.architecture_type == 'ATTENTION_AE':
+            self.model = AttentionUnet2D().to(self.device)
         elif self.architecture_type == 'AE-RES-NET-18':
             self.model = AE_Resnet18(self.num_classes, is_backbone_trained, None, None).to(self.device)
         # elif self.architecture_type == 'ATTENTION_AE_RES-NET-18':
@@ -134,7 +137,7 @@ class ModelTrainer:
             # TODO: use smarter way to use the loss according to architecture
             if self.architecture_type == 'RES-NET-18':
                 loss_value = self.bce_loss(varOutput, varTarget)
-            elif self.architecture_type == 'BASIC_AE':
+            elif self.architecture_type == 'BASIC_AE' or self.architecture_type == 'ATTENTION_AE':
                 encoder_output, decoder_output = varOutput
                 loss_value = self.mse_loss(decoder_output, varInput)
             elif self.architecture_type == 'AE-RES-NET-18':
@@ -179,7 +182,7 @@ class ModelTrainer:
                 # TODO: use smarter way to use the loss according to architecture
                 if self.architecture_type == 'RES-NET-18':
                     loss_value = self.bce_loss(varOutput, varTarget)
-                elif self.architecture_type == 'BASIC_AE':
+                elif self.architecture_type == 'BASIC_AE' or self.architecture_type == 'ATTENTION_AE':
                     encoder_output, decoder_output = varOutput
                     loss_value = self.mse_loss(decoder_output, varInput)
                 elif self.architecture_type == 'AE-RES-NET-18':
@@ -363,7 +366,7 @@ class ModelTrainer:
                 varInput = torch.autograd.Variable(input_img.view(-1, c, h, w).to(self.device))
 
                 out = self.model(varInput)
-                if self.architecture_type == 'BASIC_AE':
+                if self.architecture_type == 'BASIC_AE' or self.architecture_type == 'ATTENTION_AE':
                     encoder_output, decoder_output = out
                 elif self.architecture_type == 'AE-RES-NET-18':
                     decoder_output, classifier_output = out
