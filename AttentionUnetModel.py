@@ -292,7 +292,7 @@ class GridAttentionBlock2D(_GridAttentionBlockND):
 
 class AttentionUnet2D(nn.Module):
 
-    def __init__(self, feature_scale=1, is_deconv=True, in_channels=1, is_batchnorm=True):
+    def __init__(self, feature_scale=4, is_deconv=True, in_channels=1, is_batchnorm=True):
         super(AttentionUnet2D, self).__init__()
         self.is_deconv = is_deconv
         self.in_channels = in_channels
