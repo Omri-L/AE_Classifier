@@ -160,7 +160,6 @@ class ModelTrainer:
                 varTarget = torch.autograd.Variable(target_label).to(self.device)
                 varOutput = self.model(varInput)
 
-                # TODO: check all of the following
                 # TODO: use smarter way to use the loss according to architecture
                 if self.architecture_type == 'RES-NET-18':
                     loss_value = self.bce_loss(varOutput, varTarget)
@@ -193,11 +192,8 @@ class ModelTrainer:
         transformSequence = data_augmentations(trans_resize_size, trans_crop_size,
                                                normalization_vec, trans_rotation_angle)
 
-        trans_resize_size = 256
-        trans_crop_size = 224
-        trans_rotation_angle = None
         transformSequence_val = data_augmentations(trans_resize_size, trans_crop_size,
-                                               normalization_vec, trans_rotation_angle)
+                                               normalization_vec, rotation_angle=None)
         # -------------------- SETTINGS: DATASET BUILDERS
         dataset_train = DatasetGenerator(pathImageDirectory=path_img_dir, pathDatasetFile=path_file_train,
                                          transform=transformSequence, num_img_chs=self.num_of_input_channels)
@@ -211,7 +207,7 @@ class ModelTrainer:
         
         # -------------------- SETTINGS: OPTIMIZER & SCHEDULER  # TODO: add parameters of the optimizer
         optimizer = optim.Adam(self.model.parameters(), lr=0.0001, betas=(0.9, 0.999), eps=1e-08, weight_decay=5e-4)
-        scheduler = ReduceLROnPlateau(optimizer, factor=0.1, patience=5, mode ='min') # TODO: check what it does?
+        scheduler = ReduceLROnPlateau(optimizer, factor=0.1, patience=5, mode ='min')
 
         # ---- Load checkpoint
         if checkpoint is not None:

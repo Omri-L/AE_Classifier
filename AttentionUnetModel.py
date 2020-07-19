@@ -313,6 +313,7 @@ class AttentionUnet2D(nn.Module):
 
         # 224x224 -> 224x224
         self.center = unetConv2(filters[1], filters[2], self.is_batchnorm)
+        # self.out_center = nn.Conv2d(filters[2], self.in_channels, 1)
 
         self.attention2 = GridAttentionBlock2D(in_channels=filters[1], gating_channels=filters[2], inter_channels=None,
                                                mode='concatenation', sub_sample_factor=(2,2))  # for center layer
