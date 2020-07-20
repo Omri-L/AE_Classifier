@@ -7,19 +7,20 @@ import gc
 from ModelTrainer import ModelTrainer
 
 RESNET18 = 'RES-NET-18'
+DENSENET121 = 'DENSE-NET-121'
 BASIC_AE = 'BASIC_AE'
 AE_RESNET18 = 'AE-RES-NET-18'
 ATTENTION_AE = 'ATTENTION_AE'
 ATTENTION_AE_RESNET18 = 'IMPROVED-AE-RES-NET-18'
-PATH_IMG_DIR = r'F:\AE_Classifier\database'
-PATH_FILE_TRAIN = r"F:\AE_Classifier\Dataset_files\train_1.txt"
-PATH_FILE_VALIDATION = r"F:\AE_Classifier\Dataset_files\val_1.txt"
-PATH_FILE_TEST = r'F:\AE_Classifier\Dataset_files\test_1.txt'
+PATH_IMG_DIR = r'.\database'
+PATH_FILE_TRAIN = r".\Dataset_files\train_1.txt"
+PATH_FILE_VALIDATION = r".\Dataset_files\val_1.txt"
+PATH_FILE_TEST = r'.\Dataset_files\test_1.txt'
 
 def main():
     
-    # run_test()
-    run_train()
+    run_test()
+    # run_train()
   
 
 def run_train():
@@ -95,17 +96,20 @@ def run_test():
     if device == torch.device("cuda:0"):
         gc.collect()
         torch.cuda.empty_cache()
-
-    architecture_type = RESNET18  # select from: RESNET18, AE_RESNET18, IMPROVED_AE_RESNET18
+        print('Using GPU')
+    else:
+        print('Using CPU')
+    architecture_type = DENSENET121#RESNET18  # select from: RESNET18, AE_RESNET18, IMPROVED_AE_RESNET18
     is_backbone_pretrained = True
     num_classes = 14
     batch_size = 64
-    trans_resize_size = None
-    trans_crop_size = 896
+    trans_resize_size = 256
+    trans_crop_size = 224
     trans_rotation_angle = None
     num_of_input_channels = 3
 
-    path_trained_model = r"F:\AE_Classifier\m-RES-NET-18-18072020-150720.pth.tar"
+    # path_trained_model = r"F:\AE_Classifier\m-RES-NET-18-18072020-150720.pth.tar"
+    path_trained_model = r'C:\Users\pazi\Desktop\Uni\BioDeepLearning\Project\chexnet-master\models\m-25012018-123527.pth.tar'
 
     model_trainer = ModelTrainer(architecture_type, num_of_input_channels, is_backbone_pretrained, num_classes, device)
     model_trainer.test(PATH_IMG_DIR, PATH_FILE_TEST, path_trained_model,
