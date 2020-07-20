@@ -53,7 +53,7 @@ def run_train():
     
     # ---- Training settings: batch size, maximum number of epochs
     batch_size = 64
-    max_epoch = 100
+    max_epoch = 30
     
     # ---- Parameters related to image transforms: size of the down-scaled image, cropped image
     trans_resize_size = None
@@ -76,7 +76,7 @@ def run_train():
         trans_rotation_angle = 5
 
     path_saved_model = 'm-' + architecture_type + '-' + launch_timestamp + '.pth.tar'
-    checkpoint = None # r"F:\AE_Classifier\m-RES-NET-18-18072020-150720.pth.tar"
+    checkpoint = r"./m-RES-NET-18-20072020-073848.pth.tar"
 
     print ('Training NN architecture = ', architecture_type)
     model_trainer = ModelTrainer(architecture_type, num_of_input_channels, is_backbone_pretrained, num_classes, device)
@@ -95,17 +95,20 @@ def run_test():
     if device == torch.device("cuda:0"):
         gc.collect()
         torch.cuda.empty_cache()
+        print('Using GPU')
+    else:
+        print('Using CPU')
 
     architecture_type = RESNET18  # select from: RESNET18, AE_RESNET18, IMPROVED_AE_RESNET18
     is_backbone_pretrained = True
     num_classes = 14
     batch_size = 64
-    trans_resize_size = None
-    trans_crop_size = 896
+    trans_resize_size = 256
+    trans_crop_size = 224
     trans_rotation_angle = None
     num_of_input_channels = 3
 
-    path_trained_model = r"F:\AE_Classifier\m-RES-NET-18-18072020-150720.pth.tar"
+    path_trained_model = r"./m-RES-NET-18-19072020-151816.pth.tar"
 
     model_trainer = ModelTrainer(architecture_type, num_of_input_channels, is_backbone_pretrained, num_classes, device)
     model_trainer.test(PATH_IMG_DIR, PATH_FILE_TEST, path_trained_model,
