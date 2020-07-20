@@ -110,7 +110,7 @@ class unetUp(nn.Module):
         if is_deconv:
             self.up = nn.ConvTranspose2d(in_size, out_size, kernel_size=4, stride=2, padding=1)
         else:
-            self.up = nn.UpsamplingBilinear2d(scale_factor=2)
+            self.up = nn.UpsamplingBilinear2d(scale_factor=2,align_corners=True)
 
         # initialise the blocks
         for m in self.children():
@@ -303,17 +303,21 @@ class AttentionUnet2D(nn.Module):
         filters = [int(x / self.feature_scale) for x in filters]
 
         # downsampling
-        # from 896x896 -> 448x448
+        # from 896x896xin -> 448x448x32/scale
         self.conv1 = unetConv2(self.in_channels, filters[0], self.is_batchnorm)
         self.maxpool1 = nn.MaxPool2d(kernel_size=2)
 
-        # from 448x448 -> 224x224
+        # from 448x448x32/scale -> 224x224x64/scale
         self.conv2 = unetConv2(filters[0], filters[1], self.is_batchnorm)
         self.maxpool2 = nn.MaxPool2d(kernel_size=2)
 
-        # 224x224 -> 224x224
-        self.center = unetConv2(filters[1], filters[2], self.is_batchnorm)
-        # self.out_center = nn.Conv2d(filters[2], self.in_channels, 1)
+        # 224x224x64/scale -> 224x224x128/scale
+        self.in_center = unetConv2(filters[1], filters[2], self.is_batchnorm)
+        # 224x224x128/scale -> 224x224xin
+        self.center = unetConv2(filters[2], in_channels, self.is_batchnorm)
+        # 224x224xin -> 224x224x128/scale
+        self.out_center = unetConv2(in_channels, filters[2], self.is_batchnorm)
+
 
         self.attention2 = GridAttentionBlock2D(in_channels=filters[1], gating_channels=filters[2], inter_channels=None,
                                                mode='concatenation', sub_sample_factor=(2,2))  # for center layer
@@ -344,11 +348,14 @@ class AttentionUnet2D(nn.Module):
         maxpool2 = self.maxpool2(conv2)
 
         # convolution for central layer
-        center = self.center(maxpool2)
+        in_center = self.in_center(maxpool2)
+        center = self.center(in_center)
+        out_center = self.out_center(center)
+
 
         # attention upsample - from 224x224 to 448x448
-        atten_conv2, _ = self.attention2(conv2, center)
-        up2 = self.up_concat2(atten_conv2, center)  # upsample center and concatenate with atten_conv2
+        atten_conv2, _ = self.attention2(conv2, out_center)
+        up2 = self.up_concat2(atten_conv2, out_center)  # upsample center and concatenate with atten_conv2
 
         # attention upsample - from 448x448 to 896x896
         atten_conv1, _ = self.attention1(conv1, up2)

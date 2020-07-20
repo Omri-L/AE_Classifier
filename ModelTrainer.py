@@ -141,7 +141,6 @@ class ModelTrainer:
             optimizer.zero_grad()
             loss_value.backward()
             optimizer.step()
-
             if batch_id % (int(len(data_loader)*0.2)) == 0:
                 print("----> EpochID: {}, BatchID/NumBatches: {}/{}, mean train loss: {}"
                       .format(epoch_id + 1, batch_id + 1, len(data_loader), loss_value_mean / (batch_id + 1)))

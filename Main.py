@@ -11,10 +11,10 @@ BASIC_AE = 'BASIC_AE'
 AE_RESNET18 = 'AE-RES-NET-18'
 ATTENTION_AE = 'ATTENTION_AE'
 ATTENTION_AE_RESNET18 = 'IMPROVED-AE-RES-NET-18'
-PATH_IMG_DIR = r'F:\AE_Classifier\database'
-PATH_FILE_TRAIN = r"F:\AE_Classifier\Dataset_files\train_1.txt"
-PATH_FILE_VALIDATION = r"F:\AE_Classifier\Dataset_files\val_1.txt"
-PATH_FILE_TEST = r'F:\AE_Classifier\Dataset_files\test_1.txt'
+PATH_IMG_DIR = r'.\database'
+PATH_FILE_TRAIN = r".\Dataset_files\train_1.txt"
+PATH_FILE_VALIDATION = r".\Dataset_files\val_1.txt"
+PATH_FILE_TEST = r'.\Dataset_files\test_1.txt'
 
 def main():
     
@@ -47,7 +47,7 @@ def run_train():
     # ---- Neural network parameters: type of the network, is it pre-trained
     # ---- on imagenet, number of classes
     # choose from: RESNET18, BASIC_AE, AE_RESNET18, ATTENTION_AE, ATTENTION_AE_RESNET18
-    architecture_type = RESNET18
+    architecture_type = ATTENTION_AE
     is_backbone_pretrained = True
     num_classes = 14
     
