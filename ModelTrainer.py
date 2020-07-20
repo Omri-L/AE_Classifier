@@ -12,7 +12,7 @@ import gc
 from sklearn.metrics import roc_auc_score
 
 from ClassifierModels import Resnet18
-from AEClassifierModels import BasicAutoEncoder, AE_Resnet18
+from AEClassifierModels import BasicAutoEncoder, AE_Resnet18, AttentionUnetResnet18
 from AttentionUnetModel import AttentionUnet2D
 from DatasetGenerator import DatasetGenerator
 import PIL
@@ -85,8 +85,10 @@ class ModelTrainer:
             self.model = AttentionUnet2D().to(self.device)
         elif self.architecture_type == 'AE-RES-NET-18':
             self.model = AE_Resnet18(self.num_classes, is_backbone_trained, None, None).to(self.device)
-        # elif self.architecture_type == 'ATTENTION_AE_RES-NET-18':
-        #     self.model = Attention_AE_Resnet18(num_classes, is_backbone_trained).to(self.device)
+        elif self.architecture_type == 'ATTENTION_AE_RES-NET-18':
+            self.model = AttentionUnetResnet18(num_classes, is_backbone_trained,
+                                               r'm-RES-NET-18-17072020-211525.pth.tar',
+                                               r'm-ATTENTION_AE-19072020-154011.pth.tar').to(self.device)
 
         # self.model = torch.nn.DataParallel(self.model).to(self.device)
         self.model = torch.nn.DataParallel(self.model).cuda()
@@ -129,7 +131,7 @@ class ModelTrainer:
             elif self.architecture_type == 'BASIC_AE' or self.architecture_type == 'ATTENTION_AE':
                 encoder_output, decoder_output = varOutput
                 loss_value = self.mse_loss(decoder_output, varInput)
-            elif self.architecture_type == 'AE-RES-NET-18':
+            elif self.architecture_type == 'AE-RES-NET-18' or self.architecture_type == 'ATTENTION_AE_RES-NET-18':
                 decoder_output, classifier_output = varOutput
                 lambda_loss = 0.9
                 loss_bce_value = self.bce_loss(classifier_output, varTarget)
@@ -166,7 +168,7 @@ class ModelTrainer:
                 elif self.architecture_type == 'BASIC_AE' or self.architecture_type == 'ATTENTION_AE':
                     encoder_output, decoder_output = varOutput
                     loss_value = self.mse_loss(decoder_output, varInput)
-                elif self.architecture_type == 'AE-RES-NET-18':
+                elif self.architecture_type == 'AE-RES-NET-18' or self.architecture_type == 'ATTENTION_AE_RES-NET-18':
                     decoder_output, classifier_output = varOutput
                     lambda_loss = 0.9
                     loss_bce_value = self.bce_loss(classifier_output, varTarget)
@@ -339,10 +341,11 @@ class ModelTrainer:
                 out = self.model(varInput)
                 if self.architecture_type == 'BASIC_AE' or self.architecture_type == 'ATTENTION_AE':
                     encoder_output, decoder_output = out
-                elif self.architecture_type == 'AE-RES-NET-18':
-                    decoder_output, classifier_output = out
+                elif self.architecture_type == 'AE-RES-NET-18' or self.architecture_type == 'ATTENTION_AE_RES-NET-18':
+                    decoder_output, out = out
 
-                if self.architecture_type == 'RES-NET-18' or self.architecture_type == 'AE-RES-NET-18':
+                if self.architecture_type == 'RES-NET-18' or self.architecture_type == 'AE-RES-NET-18' \
+                        or self.architecture_type == 'ATTENTION_AE_RES-NET-18':
                     out_mean = out.view(bs, -1).mean(1)
                     out_pred = torch.cat((out_pred, out_mean.data), 0)
 
