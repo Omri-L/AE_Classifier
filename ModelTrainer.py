@@ -90,7 +90,7 @@ class ModelTrainer:
         #     self.model = Attention_AE_Resnet18(num_classes, is_backbone_trained).to(self.device)
 
         # self.model = torch.nn.DataParallel(self.model).to(self.device)
-        self.model = torch.nn.DataParallel(self.model).cuda()
+        # self.model = torch.nn.DataParallel(self.model).cuda()
         self.bce_loss = torch.nn.BCELoss(reduction='mean')
         self.mse_loss = torch.nn.MSELoss(reduction='mean')
 
@@ -305,14 +305,27 @@ class ModelTrainer:
         cudnn.benchmark = True  # TODO check what is that?
 
         self.model.to(self.device)
-        # self.model = torch.nn.DataParallel(self.model).cuda()
+        self.model = torch.nn.DataParallel(self.model).cuda()
         # fix from: https://github.com/bearpaw/pytorch-classification/issues/27
         if path_trained_model is not None:
             modelCheckpoint = torch.load(path_trained_model)
-            self.model.load_state_dict(modelCheckpoint['state_dict'])
+            # self.model.load_state_dict(modelCheckpoint['state_dict'])
             loss_train_list = modelCheckpoint['loss_train_list']
             loss_validation_list = modelCheckpoint['loss_validation_list']
+            state_dict = modelCheckpoint['state_dict']
+            from collections import OrderedDict
+            new_state_dict = OrderedDict()
 
+            for k, v in state_dict.items():
+                if 'module.' in k:
+                    k = k.replace('module.densenet121', 'densenet121')
+                if 'norm.1' or 'norm.2' in k:
+                    k = k.replace('norm.1', 'norm1')
+                    k = k.replace('norm.2', 'norm2')
+                if 'conv.1' or 'conv.2' in k:
+                    k = k.replace('conv.1', 'conv1')
+                    k = k.replace('conv.2', 'conv2')
+                new_state_dict[k] = v
         # -------------------- SETTINGS: DATA AUGMENTATION
         if self.architecture_type == 'RES-NET-18':
             normalization_vec = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
@@ -328,7 +341,8 @@ class ModelTrainer:
         
         out_gt = torch.FloatTensor().to(self.device)
         out_pred = torch.FloatTensor().to(self.device)
-       
+        decay = modelCheckpoint['optimizer']['param_groups'][0]['weight_decay']
+        lr = modelCheckpoint['optimizer']['param_groups'][0]['lr']
         self.model.eval()
         with torch.no_grad():
             for batch_id, (input_img, target) in enumerate(data_loader_test):
@@ -353,12 +367,13 @@ class ModelTrainer:
         if self.architecture_type != 'ATTENTION_AE' or self.architecture_type != 'BASIC_AE':
             auroc_individual = self.compute_AUROC(out_gt, out_pred)
             auroc_mean = np.array(auroc_individual).mean()
-            print ('AUROC mean ', auroc_mean)
-            for i in range (0, len(auroc_individual)):
-                print(CLASS_NAMES[i], ' ', auroc_individual[i])
-        plt_data(loss_train_list, loss_validation_list, "Check_point_training" + self.architecture_type,
+            # print ('AUROC mean ', auroc_mean)
+            # for i in range (0, len(auroc_individual)):
+            #     print(CLASS_NAMES[i], ' ', auroc_individual[i])
+        plt_data(loss_train_list, loss_validation_list,  path_trained_model+' decay: '+ str(decay) + ' lr: ' + str(lr) + 'AUROC mean ' + str(auroc_mean),
                  True, "")
-        return
+        print(path_trained_model,' decay: ',decay, ' lr: ', lr, 'AUROC mean ', auroc_mean)
+        return auroc_mean
 
 
 
