@@ -269,11 +269,8 @@ class ModelTrainer:
         transformSequence = data_augmentations(trans_resize_size, trans_crop_size,
                                                normalization_vec, trans_rotation_angle)
 
-        trans_resize_size = 256
-        trans_crop_size = 224
-        trans_rotation_angle = None
         transformSequence_val = data_augmentations(trans_resize_size, trans_crop_size,
-                                                   normalization_vec, trans_rotation_angle, center_crop=True,
+                                                   normalization_vec, None, center_crop=True,
                                                    flip=False)
         # -------------------- SETTINGS: DATASET BUILDERS
         dataset_train = DatasetGenerator(pathImageDirectory=path_img_dir, pathDatasetFile=path_file_train,

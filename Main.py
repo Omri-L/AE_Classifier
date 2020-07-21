@@ -86,13 +86,25 @@ def run_test():
     else:
         print('Using CPU')
 
-    architecture_type = RESNET18  # select from: RESNET18, AE_RESNET18, IMPROVED_AE_RESNET18
+    architecture_type = AE_RESNET18  # select from: RESNET18, AE_RESNET18, IMPROVED_AE_RESNET18
     is_backbone_pretrained = True
     num_classes = 14
-    batch_size = 1024
-    trans_resize_size = 256
-    trans_crop_size = 224
-    num_of_input_channels = 3
+    if architecture_type == RESNET18:
+        # resize to 256 -> random crop to 224 -> random rotate [-5,5]
+        batch_size = 1024
+        trans_resize_size = 256
+        trans_crop_size = 224
+        num_of_input_channels = 3
+    elif architecture_type == BASIC_AE or architecture_type == ATTENTION_AE:
+        batch_size = 1024
+        # random crop to 128
+        trans_crop_size = 128
+    elif architecture_type == AE_RESNET18 or architecture_type == ATTENTION_AE_RESNET18:
+        # random crop to 896 -> random rotate [-5,5]
+        batch_size = 256
+        trans_crop_size = 896
+
+
 
     path_trained_model = r'C:\Users\pazi\Desktop\Uni\BioDeepLearning\1e4\m-RES-NET-18-20072020-073848.pth.tar'
     folder_models = r"F:\4e5"
