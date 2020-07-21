@@ -325,29 +325,27 @@ class ModelTrainer:
                         'Hernia']
         
         cudnn.benchmark = True  # TODO check what is that?
-
-        self.model.to(self.device)
-        self.model = torch.nn.DataParallel(self.model).cuda()
-        # fix from: https://github.com/bearpaw/pytorch-classification/issues/27
+        # # fix from: https://github.com/bearpaw/pytorch-classification/issues/27
         if path_trained_model is not None:
             modelCheckpoint = torch.load(path_trained_model)
-            # self.model.load_state_dict(modelCheckpoint['state_dict'])
+            self.model.load_state_dict(modelCheckpoint['state_dict'])
+            self.model.to(self.device)
             loss_train_list = modelCheckpoint['loss_train_list']
             loss_validation_list = modelCheckpoint['loss_validation_list']
-            state_dict = modelCheckpoint['state_dict']
-            from collections import OrderedDict
-            new_state_dict = OrderedDict()
-
-            for k, v in state_dict.items():
-                if 'module.' in k:
-                    k = k.replace('module.densenet121', 'densenet121')
-                if 'norm.1' or 'norm.2' in k:
-                    k = k.replace('norm.1', 'norm1')
-                    k = k.replace('norm.2', 'norm2')
-                if 'conv.1' or 'conv.2' in k:
-                    k = k.replace('conv.1', 'conv1')
-                    k = k.replace('conv.2', 'conv2')
-                new_state_dict[k] = v
+        #     state_dict = modelCheckpoint['state_dict']
+        #     from collections import OrderedDict
+        #     new_state_dict = OrderedDict()
+        #
+        #     for k, v in state_dict.items():
+        #         if 'module.' in k:
+        #             k = k.replace('module.densenet121', 'densenet121')
+        #         if 'norm.1' or 'norm.2' in k:
+        #             k = k.replace('norm.1', 'norm1')
+        #             k = k.replace('norm.2', 'norm2')
+        #         if 'conv.1' or 'conv.2' in k:
+        #             k = k.replace('conv.1', 'conv1')
+        #             k = k.replace('conv.2', 'conv2')
+        #         new_state_dict[k] = v
         # -------------------- SETTINGS: DATA AUGMENTATION
         if self.architecture_type == 'RES-NET-18':
             normalization_vec = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
