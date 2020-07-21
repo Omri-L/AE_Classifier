@@ -217,8 +217,8 @@ class ModelTrainer:
                                            shuffle=False, num_workers=8, pin_memory=True)
         
         # -------------------- SETTINGS: OPTIMIZER & SCHEDULER  # TODO: add parameters of the optimizer
-        optimizer = optim.Adam(self.model.parameters(), lr=0.0001, betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-3)
-        scheduler = ReduceLROnPlateau(optimizer, factor=0.1, patience=5, mode ='min',threshold=1e-3) # TODO: check what it does?
+        optimizer = optim.Adam(self.model.parameters(), lr=0.0001, betas=(0.9, 0.999), eps=1e-08, weight_decay=5e-4)
+        scheduler = ReduceLROnPlateau(optimizer, factor=0.1, patience=5, mode ='min',verbose=True) # TODO: check what it does?
 
         # ---- Load checkpoint
         if checkpoint is not None:
@@ -227,9 +227,11 @@ class ModelTrainer:
             optimizer.load_state_dict(modelCheckpoint['optimizer'])
             loss_train_list = modelCheckpoint['loss_train_list']
             loss_validation_list = modelCheckpoint['loss_validation_list']
+            init_epoch = modelCheckpoint['epoch']
         else:
             loss_train_list = []
             loss_validation_list = []
+            init_epoch = 0
         # for param_group in optimizer.param_groups:
         #     param_group['lr'] *= 0.1
         # ---- TRAIN THE NETWORK
@@ -248,8 +250,8 @@ class ModelTrainer:
             s = time.time()
             loss_validation, loss_validation_tensor = self.epoch_validation(dataLoader_validation)
             print('val epoch time: ', time.time() - s)
-            print("-------> EpochID: {}, mean train loss: {}".format(epoch_id + 1, loss_train))
-            print("-------> EpochID: {}, mean validation loss: {}".format(epoch_id + 1, loss_validation))
+            print("-------> EpochID: {}/{}, mean train loss: {}".format(init_epoch+epoch_id + 1, init_epoch+max_epochs, loss_train))
+            print("-------> EpochID: {}/{}, mean validation loss: {}".format(init_epoch+epoch_id + 1,init_epoch+max_epochs, loss_validation))
             loss_train_list.append(loss_train)
             loss_validation_list.append(loss_validation)
 
