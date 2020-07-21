@@ -18,8 +18,8 @@ PATH_FILE_TEST = r'.\Dataset_files\test_1.txt'
 
 def main():
     
-    # run_test()
-    run_train()
+    run_test()
+    # run_train()
   
 
 def run_train():
@@ -108,13 +108,23 @@ def run_test():
     trans_rotation_angle = None
     num_of_input_channels = 3
 
-    path_trained_model = r"./m-RES-NET-18-19072020-151816.pth.tar"
-
-    model_trainer = ModelTrainer(architecture_type, num_of_input_channels, is_backbone_pretrained, num_classes, device)
-    model_trainer.test(PATH_IMG_DIR, PATH_FILE_TEST, path_trained_model,
-                       batch_size, trans_resize_size, trans_crop_size, trans_rotation_angle)
-
-
+    path_trained_model = r'C:\Users\pazi\Desktop\Uni\BioDeepLearning\1e4\m-RES-NET-18-20072020-073848.pth.tar'
+    folder_models = r'C:\Users\pazi\Desktop\Uni\BioDeepLearning\4e5'
+    path_trained_models = []
+    for f in os.listdir(folder_models):
+        name, ext = os.path.splitext(f)
+        if ext == '.tar':
+            path_trained_models.append(folder_models+'\\'+f)
+    auroc_means = []
+    for path_trained_model in path_trained_models:
+        model_trainer = ModelTrainer(architecture_type, num_of_input_channels, is_backbone_pretrained, num_classes, device)
+        auroc_means.append(model_trainer.test(PATH_IMG_DIR, PATH_FILE_TEST, path_trained_model,
+                            batch_size, trans_resize_size, trans_crop_size, trans_rotation_angle))
+    best_model = np.argmin(auroc_means)
+    modelCheckpoint = torch.load(path_trained_models[best_model])
+    decay = modelCheckpoint['optimizer']['param_groups'][0]['weight_decay']
+    lr = modelCheckpoint['optimizer']['param_groups'][0]['lr']
+    torch.save(modelCheckpoint,'m-' + modelCheckpoint['model_type'] + '-' + decay + lr + '.pth.tar')
 if __name__ == '__main__':
     main()
 
