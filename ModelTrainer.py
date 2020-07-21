@@ -53,11 +53,10 @@ def plt_data(data_train, data_val, titleStr, save_fig=False, save_dir=''):
     plt.xlabel('Epoch #')
     plt.plot(data_train, color='b', label='Train')
     plt.plot(data_val, color='r', label='Validation')
-    titleStr_train = titleStr + '_Train'
-    plt.title(titleStr_train)
+    plt.title(titleStr)
     plt.legend(loc='upper right')
     if save_fig:
-        fig1.savefig(save_dir + titleStr_train + '.png', dpi=100)
+        fig1.savefig(save_dir + '\\' + titleStr + '.png', dpi=100)
     plt.close('all')
 
 
@@ -75,11 +74,14 @@ class ModelTrainer:
     # ---- transCrop - size of the cropped image
     # ---- launchTimestamp - date/time, used to assign unique name for the checkpoint file
     # ---- checkpoint - if not None loads the model and continues training
-    def __init__(self, architecture_type, num_of_input_channels, is_backbone_trained, num_classes, device):
+    def __init__(self, architecture_type, num_of_input_channels, is_backbone_trained, num_classes, lambda_loss, device,
+                 outputs_path='', trained_classifier_model_path=None, trained_ae_model_path=None):
         self.architecture_type = architecture_type
         self.device = device
         self.num_classes = num_classes
         self.num_of_input_channels = num_of_input_channels
+        self.lambda_loss = lambda_loss
+        self.outputs_path = outputs_path
 
         # -------------------- SETTINGS: NETWORK ARCHITECTURE
         if self.architecture_type == 'RES-NET-18':
@@ -89,9 +91,11 @@ class ModelTrainer:
         elif self.architecture_type == 'ATTENTION_AE':
             self.model = AttentionUnet2D().to(self.device)
         elif self.architecture_type == 'AE-RES-NET-18':
-            self.model = AE_Resnet18(self.num_classes, is_backbone_trained, None, None).to(self.device)
+            self.model = AE_Resnet18(self.num_classes, is_backbone_trained,
+                                     trained_classifier_model_path, trained_ae_model_path).to(self.device)
         elif self.architecture_type == 'ATTENTION_AE_RES-NET-18':
-            self.model = AttentionUnetResnet18(num_classes, is_backbone_trained).to(self.device)
+            self.model = AttentionUnetResnet18(num_classes, is_backbone_trained,
+                                               trained_classifier_model_path, trained_ae_model_path).to(self.device)
 
         # self.model = torch.nn.DataParallel(self.model).to(self.device)
         # self.model = torch.nn.DataParallel(self.model).cuda()
@@ -140,10 +144,9 @@ class ModelTrainer:
                 loss_value = self.mse_loss(decoder_output, varInput)
             elif self.architecture_type == 'AE-RES-NET-18' or self.architecture_type == 'ATTENTION_AE_RES-NET-18':
                 decoder_output, classifier_output = varOutput
-                lambda_loss = 0.9
                 loss_bce_value = self.bce_loss(classifier_output, varTarget)
                 loss_mse_value = self.mse_loss(decoder_output, varInput)
-                loss_value = lambda_loss * loss_bce_value + (1-lambda_loss) * loss_mse_value
+                loss_value = self.lambda_loss * loss_bce_value + (1-self.lambda_loss) * loss_mse_value
             loss_value_mean += loss_value.item()
             optimizer.zero_grad()
             loss_value.backward()
@@ -179,10 +182,9 @@ class ModelTrainer:
                     loss_value = self.mse_loss(decoder_output, varInput)
                 elif self.architecture_type == 'AE-RES-NET-18' or self.architecture_type == 'ATTENTION_AE_RES-NET-18':
                     decoder_output, classifier_output = varOutput
-                    lambda_loss = 0.9 # TODO: add as a parameter
                     loss_bce_value = self.bce_loss(classifier_output, varTarget)
                     loss_mse_value = self.mse_loss(decoder_output, varInput)
-                    loss_value = lambda_loss * loss_bce_value + (1-lambda_loss) * loss_mse_value
+                    loss_value = self.lambda_loss * loss_bce_value + (1-self.lambda_loss) * loss_mse_value
 
                 loss_tensor_mean += loss_value
                 loss_val += loss_value.item()
@@ -192,9 +194,11 @@ class ModelTrainer:
         loss_tensor_mean = loss_tensor_mean / loss_val_norm
         return out_loss, loss_tensor_mean
 
-    def train(self, path_img_dir, path_file_train, path_file_validation, batch_size,
-              max_epochs, trans_resize_size, trans_crop_size, trans_rotation_angle, launch_timestamp, checkpoint):
-        s=time.time()
+    def train(self, path_img_dir, path_file_train, path_file_validation, batch_size, max_epochs,
+              optimizer_lr, optimizer_weight_decay, scheduler_factor, scheduler_patience,
+              trans_resize_size, trans_crop_size, trans_rotation_angle,
+              launch_timestamp, checkpoint=None):
+        s = time.time()
         # -------------------- SETTINGS: DATA AUGMENTATION
         if self.architecture_type == 'RES-NET-18':
             normalization_vec = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
@@ -216,9 +220,11 @@ class ModelTrainer:
         dataLoader_validation = DataLoader(dataset=dataset_validation, batch_size=batch_size,
                                            shuffle=False, num_workers=8, pin_memory=True)
         
-        # -------------------- SETTINGS: OPTIMIZER & SCHEDULER  # TODO: add parameters of the optimizer
-        optimizer = optim.Adam(self.model.parameters(), lr=0.0001, betas=(0.9, 0.999), eps=1e-08, weight_decay=5e-4)
-        scheduler = ReduceLROnPlateau(optimizer, factor=0.1, patience=5, mode ='min',verbose=True) # TODO: check what it does?
+        # -------------------- SETTINGS: OPTIMIZER & SCHEDULER
+        optimizer = optim.Adam(self.model.parameters(), lr=optimizer_lr, betas=(0.9, 0.999),
+                               eps=1e-08, weight_decay=optimizer_weight_decay)
+        scheduler = ReduceLROnPlateau(optimizer, factor=scheduler_factor, patience=scheduler_patience,
+                                      mode ='min',verbose=True)
 
         # ---- Load checkpoint
         if checkpoint is not None:
@@ -237,7 +243,6 @@ class ModelTrainer:
         # ---- TRAIN THE NETWORK
         min_loss = 100000
 
-
         print('init timing: ', time.time()-s)
 
         for epoch_id in range(0, max_epochs):
@@ -250,23 +255,25 @@ class ModelTrainer:
             s = time.time()
             loss_validation, loss_validation_tensor = self.epoch_validation(dataLoader_validation)
             print('val epoch time: ', time.time() - s)
-            print("-------> EpochID: {}/{}, mean train loss: {}".format(init_epoch+epoch_id + 1, init_epoch+max_epochs, loss_train))
-            print("-------> EpochID: {}/{}, mean validation loss: {}".format(init_epoch+epoch_id + 1,init_epoch+max_epochs, loss_validation))
+            print("-------> EpochID: {}/{}, mean train loss: {}".format(init_epoch+epoch_id + 1,
+                                                                        init_epoch+max_epochs, loss_train))
+            print("-------> EpochID: {}/{}, mean validation loss: {}".format(init_epoch+epoch_id + 1,
+                                                                             init_epoch+max_epochs, loss_validation))
             loss_train_list.append(loss_train)
             loss_validation_list.append(loss_validation)
 
             if epoch_id % 3 == 0:
                 plt_data(loss_train_list, loss_validation_list, "Loss_train_vs_validation_" + self.architecture_type,
-                         True, "")
+                         True, self.outputs_path)
 
             timestampTime = time.strftime("%H%M%S")
             timestampDate = time.strftime("%d%m%Y")
             timestampEND = timestampDate + '-' + timestampTime
             
             scheduler.step(loss_validation_tensor.item())
-            
             if loss_validation < min_loss:
                 min_loss = loss_validation
+                file_name = self.outputs_path + '\\m-' + self.architecture_type + '-' + launch_timestamp + '.pth.tar'
                 torch.save({'model_type': self.architecture_type,
                             'epoch': epoch_id + 1,
                             'state_dict': self.model.state_dict(),
@@ -274,10 +281,14 @@ class ModelTrainer:
                             'optimizer' : optimizer.state_dict(),
                             'loss_train_list' : loss_train_list,
                             'loss_validation_list' : loss_validation_list},
-                           'm-' + self.architecture_type + '-' + launch_timestamp + '.pth.tar')
-                print('Epoch [' + str(epoch_id + 1) + '] [save] [' + timestampEND + '] loss= ' + str(loss_validation) + ' lr=' + str(self.get_lr(optimizer)))
+                           file_name)
+                plt_data(loss_train_list, loss_validation_list, "Loss_train_vs_validation_" + self.architecture_type,
+                         True, self.outputs_path)
+                print('Epoch [' + str(epoch_id + 1) + '] [save] [' + timestampEND + '] loss= ' + str(loss_validation)
+                      + ' lr=' + str(self.get_lr(optimizer)))
             else:
-                print('Epoch [' + str(epoch_id + 1) + '] [----] [' + timestampEND + '] loss= ' + str(loss_validation) + ' lr=' + str(self.get_lr(optimizer)))
+                print('Epoch [' + str(epoch_id + 1) + '] [----] [' + timestampEND + '] loss= ' + str(loss_validation)
+                      + ' lr=' + str(self.get_lr(optimizer)))
 
         print("finish training!")
 
@@ -296,7 +307,7 @@ class ModelTrainer:
     # ---- checkpoint - if not None loads the model and continues training
     
     def test(self, path_img_dir, path_file_test, path_trained_model,
-             batch_size, trans_resize_size, trans_crop_size, trans_rotation_angle):
+             batch_size, trans_resize_size, trans_crop_size):
 
         CLASS_NAMES = [ 'Atelectasis', 'Cardiomegaly', 'Effusion', 'Infiltration', 'Mass', 'Nodule', 'Pneumonia',
                         'Pneumothorax', 'Consolidation', 'Edema', 'Emphysema', 'Fibrosis', 'Pleural_Thickening',
@@ -371,8 +382,8 @@ class ModelTrainer:
             # print ('AUROC mean ', auroc_mean)
             # for i in range (0, len(auroc_individual)):
             #     print(CLASS_NAMES[i], ' ', auroc_individual[i])
-        plt_data(loss_train_list, loss_validation_list,  path_trained_model+' decay: '+ str(decay) + ' lr: ' + str(lr) + 'AUROC mean ' + str(auroc_mean),
-                 True, "")
+        plt_data(loss_train_list, loss_validation_list, 'Test_decay_' + str(decay) + '_lr_' + str(lr) + '_AUROC mean_'
+                 + str(auroc_mean), True, self.outputs_path)
         print(path_trained_model,' decay: ',decay, ' lr: ', lr, 'AUROC mean ', auroc_mean)
         return auroc_mean
 
