@@ -69,10 +69,22 @@ class AE_Resnet18(nn.Module):
         self.classifier = Resnet18(num_classes=self.num_classes, is_trained=is_backbone_trained)
 
         if pre_trained_ae_path is not None:
-            self.auto_encoder.load_state_dict(torch.load(pre_trained_ae_path))
+            checkpoint = torch.load(pre_trained_ae_path)
+            new_state_dict = OrderedDict()
+            for k, v in checkpoint['state_dict'].items():
+                if 'module.' in k:
+                    k = k.replace('module.', '')
+                new_state_dict[k] = v
+            self.auto_encoder.load_state_dict(new_state_dict)
 
         if pre_trained_classifier_path is not None:
-            self.classifier.load_state_dict(torch.load(pre_trained_classifier_path))
+            checkpoint = torch.load(pre_trained_classifier_path)
+            new_state_dict = OrderedDict()
+            for k, v in checkpoint['state_dict'].items():
+                if 'module.' in k:
+                    k = k.replace('module.', '')
+                new_state_dict[k] = v
+            self.classifier.load_state_dict(new_state_dict)
 
     def forward(self, x):
 
@@ -104,7 +116,6 @@ class AttentionUnetResnet18(nn.Module):
         if pre_trained_ae_path is not None:
             checkpoint = torch.load(pre_trained_ae_path)
             new_state_dict = OrderedDict()
-
             for k, v in checkpoint['state_dict'].items():
                 if 'module.' in k:
                     k = k.replace('module.', '')
