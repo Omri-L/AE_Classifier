@@ -1,25 +1,10 @@
-import os
-import numpy as np
-import time
-import sys
-import torch
-import gc
-from ModelTrainer import ModelTrainer
+from ModelTrainer import *
 
-RESNET18 = 'RES-NET-18'
-BASIC_AE = 'BASIC_AE'
-AE_RESNET18 = 'AE-RES-NET-18'
-ATTENTION_AE = 'ATTENTION_AE'
-ATTENTION_AE_RESNET18 = 'IMPROVED-AE-RES-NET-18'
-PATH_IMG_DIR = r'.\database'
-PATH_FILE_TRAIN = r".\Dataset_files\train_1.txt"
-PATH_FILE_VALIDATION = r".\Dataset_files\val_1.txt"
-PATH_FILE_TEST = r'.\Dataset_files\test_1.txt'
 
 def main():
     
-    run_test()
-    # run_train()
+    # run_test()
+    run_train()
   
 
 def run_train():
@@ -47,7 +32,7 @@ def run_train():
     # ---- Neural network parameters: type of the network, is it pre-trained
     # ---- on imagenet, number of classes
     # choose from: RESNET18, BASIC_AE, AE_RESNET18, ATTENTION_AE, ATTENTION_AE_RESNET18
-    architecture_type = ATTENTION_AE
+    architecture_type = AE_RESNET18
     is_backbone_pretrained = True
     num_classes = 14
     
@@ -76,13 +61,15 @@ def run_train():
         trans_rotation_angle = 5
 
     path_saved_model = 'm-' + architecture_type + '-' + launch_timestamp + '.pth.tar'
-    checkpoint = r"./m-RES-NET-18-20072020-073848.pth.tar"
+    checkpoint_encoder = r"./m-BASIC_AE.pth.tar"
+    checkpoint_classifier = r"./m-RES-NET-18.pth.tar"
+    checkpoint_combined = None
 
-    print ('Training NN architecture = ', architecture_type)
+    print('Training NN architecture = ', architecture_type)
     model_trainer = ModelTrainer(architecture_type, num_of_input_channels, is_backbone_pretrained, num_classes, device)
     model_trainer.train(PATH_IMG_DIR, PATH_FILE_TRAIN, PATH_FILE_VALIDATION, batch_size,
-                        max_epoch, trans_resize_size, trans_crop_size, trans_rotation_angle, launch_timestamp, checkpoint)
-    
+                        max_epoch, trans_resize_size, trans_crop_size, trans_rotation_angle, launch_timestamp,
+                        checkpoint_classifier, checkpoint_encoder, checkpoint_combined)
     print ('Testing the trained model')
     model_trainer.test(PATH_IMG_DIR, PATH_FILE_TEST, path_saved_model,
                        batch_size, trans_resize_size, trans_crop_size, None)
@@ -102,14 +89,13 @@ def run_test():
     architecture_type = RESNET18  # select from: RESNET18, AE_RESNET18, IMPROVED_AE_RESNET18
     is_backbone_pretrained = True
     num_classes = 14
-    batch_size = 64
+    batch_size = 1024
     trans_resize_size = 256
     trans_crop_size = 224
-    trans_rotation_angle = None
     num_of_input_channels = 3
 
     path_trained_model = r'C:\Users\pazi\Desktop\Uni\BioDeepLearning\1e4\m-RES-NET-18-20072020-073848.pth.tar'
-    folder_models = r'C:\Users\pazi\Desktop\Uni\BioDeepLearning\4e5'
+    folder_models = r"F:\4e5"
     path_trained_models = []
     for f in os.listdir(folder_models):
         name, ext = os.path.splitext(f)
@@ -119,12 +105,12 @@ def run_test():
     for path_trained_model in path_trained_models:
         model_trainer = ModelTrainer(architecture_type, num_of_input_channels, is_backbone_pretrained, num_classes, device)
         auroc_means.append(model_trainer.test(PATH_IMG_DIR, PATH_FILE_TEST, path_trained_model,
-                            batch_size, trans_resize_size, trans_crop_size, trans_rotation_angle))
-    best_model = np.argmin(auroc_means)
+                            batch_size, trans_resize_size, trans_crop_size))
+    best_model = np.argmax(auroc_means)
     modelCheckpoint = torch.load(path_trained_models[best_model])
     decay = modelCheckpoint['optimizer']['param_groups'][0]['weight_decay']
     lr = modelCheckpoint['optimizer']['param_groups'][0]['lr']
-    torch.save(modelCheckpoint,'m-' + modelCheckpoint['model_type'] + '-' + decay + lr + '.pth.tar')
+    torch.save(modelCheckpoint,'m-' + modelCheckpoint['model_type'] + '-' + str(decay) + '-' + str(lr) + '.pth.tar' + '-' + str(np.round(1000*auroc_means[best_model])/1000))
 if __name__ == '__main__':
     main()
 
