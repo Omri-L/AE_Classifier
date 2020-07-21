@@ -72,7 +72,7 @@ def run_train():
                         checkpoint_classifier, checkpoint_encoder, checkpoint_combined)
     print ('Testing the trained model')
     model_trainer.test(PATH_IMG_DIR, PATH_FILE_TEST, path_saved_model,
-                       batch_size, trans_resize_size, trans_crop_size, None)
+                       batch_size, trans_resize_size, trans_crop_size)
 
 
 def run_test():
