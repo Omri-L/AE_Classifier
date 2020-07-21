@@ -75,13 +75,17 @@ class ModelTrainer:
     # ---- launchTimestamp - date/time, used to assign unique name for the checkpoint file
     # ---- checkpoint - if not None loads the model and continues training
     def __init__(self, architecture_type, num_of_input_channels, is_backbone_trained, num_classes, lambda_loss, device,
-                 outputs_path='', trained_classifier_model_path=None, trained_ae_model_path=None):
+                 outputs_path='', log_file_path=None, trained_classifier_model_path=None, trained_ae_model_path=None):
         self.architecture_type = architecture_type
         self.device = device
         self.num_classes = num_classes
         self.num_of_input_channels = num_of_input_channels
         self.lambda_loss = lambda_loss
         self.outputs_path = outputs_path
+        if log_file_path is not None:
+            self.log_file = open(log_file_path, 'w')
+        else:
+            self.log_file = None
 
         # -------------------- SETTINGS: NETWORK ARCHITECTURE
         if self.architecture_type == 'RES-NET-18':
@@ -98,9 +102,14 @@ class ModelTrainer:
                                                trained_classifier_model_path, trained_ae_model_path).to(self.device)
 
         # self.model = torch.nn.DataParallel(self.model).to(self.device)
-        # self.model = torch.nn.DataParallel(self.model).cuda()
+        self.model = torch.nn.DataParallel(self.model).cuda()
         self.bce_loss = torch.nn.BCELoss(reduction='mean')
         self.mse_loss = torch.nn.MSELoss(reduction='mean')
+
+    def my_print(self, text):
+        print(text)
+        if self.log_file is not None:
+            self.log_file.write(text + "\n")
 
     def get_lr(self,optimizer):
         for param_group in optimizer.param_groups:
@@ -153,7 +162,7 @@ class ModelTrainer:
             optimizer.step()
 
             if batch_id % (int(len(data_loader)*0.3)+1) == 0:
-                print("----> EpochID: {}, BatchID/NumBatches: {}/{}, mean train loss: {}"
+                self.my_print("----> EpochID: {}, BatchID/NumBatches: {}/{}, mean train loss: {}"
                       .format(epoch_id + 1, batch_id + 1, len(data_loader), loss_value_mean / (batch_id + 1)))
 
         loss_value_mean /= len(data_loader)
@@ -243,7 +252,7 @@ class ModelTrainer:
         # ---- TRAIN THE NETWORK
         min_loss = 100000
 
-        print('init timing: ', time.time()-s)
+        self.my_print('init timing: {}'.format(time.time()-s))
 
         for epoch_id in range(0, max_epochs):
             timestampTime = time.strftime("%H%M%S")
@@ -251,13 +260,13 @@ class ModelTrainer:
             timestampSTART = timestampDate + '-' + timestampTime
             s = time.time()
             loss_train = self.epoch_train(epoch_id, dataLoader_train, optimizer)
-            print('train epoch time: ', time.time()-s)
+            self.my_print('train epoch time: {}'.format(time.time()-s))
             s = time.time()
             loss_validation, loss_validation_tensor = self.epoch_validation(dataLoader_validation)
-            print('val epoch time: ', time.time() - s)
-            print("-------> EpochID: {}/{}, mean train loss: {}".format(init_epoch+epoch_id + 1,
+            self.my_print('val epoch time: {}'.format(time.time()-s))
+            self.my_print("-------> EpochID: {}/{}, mean train loss: {}".format(init_epoch+epoch_id + 1,
                                                                         init_epoch+max_epochs, loss_train))
-            print("-------> EpochID: {}/{}, mean validation loss: {}".format(init_epoch+epoch_id + 1,
+            self.my_print("-------> EpochID: {}/{}, mean validation loss: {}".format(init_epoch+epoch_id + 1,
                                                                              init_epoch+max_epochs, loss_validation))
             loss_train_list.append(loss_train)
             loss_validation_list.append(loss_validation)
@@ -284,13 +293,15 @@ class ModelTrainer:
                            file_name)
                 plt_data(loss_train_list, loss_validation_list, "Loss_train_vs_validation_" + self.architecture_type,
                          True, self.outputs_path)
-                print('Epoch [' + str(epoch_id + 1) + '] [save] [' + timestampEND + '] loss= ' + str(loss_validation)
+                self.my_print('Epoch [' + str(epoch_id + 1) + '] [save] [' + timestampEND + '] loss= ' + str(loss_validation)
                       + ' lr=' + str(self.get_lr(optimizer)))
             else:
-                print('Epoch [' + str(epoch_id + 1) + '] [----] [' + timestampEND + '] loss= ' + str(loss_validation)
+                self.my_print('Epoch [' + str(epoch_id + 1) + '] [----] [' + timestampEND + '] loss= ' + str(loss_validation)
                       + ' lr=' + str(self.get_lr(optimizer)))
 
-        print("finish training!")
+        self.my_print("finish training!")
+        self.log_file.close()
+        self.log_file = None
 
     # ---- Test the trained network
     # ---- pathDirData - path to the directory that contains images
@@ -379,12 +390,12 @@ class ModelTrainer:
         if self.architecture_type != 'ATTENTION_AE' or self.architecture_type != 'BASIC_AE':
             auroc_individual = self.compute_AUROC(out_gt, out_pred)
             auroc_mean = np.array(auroc_individual).mean()
-            # print ('AUROC mean ', auroc_mean)
-            # for i in range (0, len(auroc_individual)):
-            #     print(CLASS_NAMES[i], ' ', auroc_individual[i])
+            print('AUROC mean {}'.format(auroc_mean))
+            for i in range (0, len(auroc_individual)):
+                print(str(CLASS_NAMES[i]) + '=' + str(auroc_individual[i]))
         plt_data(loss_train_list, loss_validation_list, 'Test_decay_' + str(decay) + '_lr_' + str(lr) + '_AUROC mean_'
                  + str(auroc_mean), True, self.outputs_path)
-        print(path_trained_model,' decay: ',decay, ' lr: ', lr, 'AUROC mean ', auroc_mean)
+        print(str(path_trained_model) + ' decay: ' + str(decay) + ' lr: ' + str(lr) + 'AUROC mean ' + str(auroc_mean))
         return auroc_mean
 
 

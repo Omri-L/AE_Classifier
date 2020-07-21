@@ -22,7 +22,7 @@ PATH_IMG_DIR = r'.\database'
 PATH_FILE_TRAIN = r'.\Dataset_files\train_1.txt'
 PATH_FILE_VALIDATION = r'.\Dataset_files\val_1.txt'
 PATH_FILE_TEST = r'.\Dataset_files\test_1.txt'
-SAVE_DIR = 'TrainedModels'
+SAVE_DIR_NAME = 'TrainedModels'
 SAVE_PRINTS_TO_FILE = True  # only for train modes
 CHECKPOINT_FOR_TRAINING = None  # r'./m-RES-NET-18-20072020-073848.pth.tar'  # None # For training continuation
 TRAINED_CLASSIFIER_MODEL = None  # set trained classifier model path only for the joint training
@@ -46,7 +46,7 @@ def main():
           'PATH_FILE_TRAIN {}\n'.format(PATH_FILE_TRAIN) +
           'PATH_FILE_VALIDATION {}\n'.format(PATH_FILE_VALIDATION) +
           'PATH_FILE_TEST {}\n'.format(PATH_FILE_TEST) +
-          'SAVE_DIR {}\n'.format(SAVE_DIR) +
+          'SAVE_DIR {}\n'.format(SAVE_DIR_NAME) +
           'CHECKPOINT_FOR_TRAINING {}\n'.format(CHECKPOINT_FOR_TRAINING) +
           'TRAINED_CLASSIFIER_MODEL {}\n'.format(TRAINED_CLASSIFIER_MODEL) +
           'TRAINED_AE_MODEL {}\n'.format(TRAINED_AE_MODEL) +
@@ -60,8 +60,8 @@ def main():
           'LOSS_LAMBDA {}\n'.format(LOSS_LAMBDA)
           )
 
-    if os.path.exists(SAVE_DIR) is False:
-        os.mkdir(SAVE_DIR)
+    if os.path.exists(SAVE_DIR_NAME) is False:
+        os.mkdir(SAVE_DIR_NAME)
 
     if RUN_MODE == 'Test_only':
         run_test()
@@ -122,19 +122,17 @@ def run_train():
         trans_crop_size = 896
         trans_rotation_angle = 5
 
-    sub_dir = SAVE_DIR + '\\' + architecture_type + launch_timestamp
+    sub_dir = os.getcwd() + '\\' + SAVE_DIR_NAME + '\\' + architecture_type + launch_timestamp
     os.mkdir(sub_dir)
     if SAVE_PRINTS_TO_FILE:
-        old_stdout = sys.stdout
-        log_file = open(sub_dir + "\\log.txt", "w")
-        sys.stdout = log_file
+        log_path = sub_dir + "\\log.txt"
 
     checkpoint_training = CHECKPOINT_FOR_TRAINING
 
     print('Training NN architecture = ', architecture_type)
     model_trainer = ModelTrainer(architecture_type, num_of_input_channels, is_backbone_pretrained, num_classes,
                                  lambda_loss, device,
-                                 sub_dir, TRAINED_CLASSIFIER_MODEL, TRAINED_AE_MODEL)
+                                 sub_dir, log_path, TRAINED_CLASSIFIER_MODEL, TRAINED_AE_MODEL)
     model_trainer.train(PATH_IMG_DIR, PATH_FILE_TRAIN, PATH_FILE_VALIDATION, batch_size, max_epoch,
                         optimizer_lr, optimizer_weight_decay, scheduler_factor, scheduler_patience,
                         trans_resize_size, trans_crop_size, trans_rotation_angle,
@@ -143,12 +141,8 @@ def run_train():
     if RUN_MODE == 'Train_Test':
         print('Testing the trained model')
         saved_model_name = sub_dir + '\\m-' + architecture_type + '-' + launch_timestamp + '.pth.tar'
-        model_trainer.test(PATH_IMG_DIR, PATH_FILE_TEST, saved_model_name,
+        auroc_mean = model_trainer.test(PATH_IMG_DIR, PATH_FILE_TEST, saved_model_name,
                            batch_size, trans_resize_size, trans_crop_size)
-
-    if SAVE_PRINTS_TO_FILE:
-        sys.stdout = old_stdout
-        log_file.close()
 
 
 def run_test():
@@ -190,7 +184,7 @@ def run_test():
     print('Testing NN architecture = ', architecture_type)
     model_trainer = ModelTrainer(architecture_type, num_of_input_channels, is_backbone_pretrained, num_classes,
                                  LOSS_LAMBDA, device)
-    model_trainer.test(PATH_IMG_DIR, PATH_FILE_TEST, path_trained_model,
+    auroc_mean = model_trainer.test(PATH_IMG_DIR, PATH_FILE_TEST, path_trained_model,
                        batch_size, trans_resize_size, trans_crop_size)
 
 
