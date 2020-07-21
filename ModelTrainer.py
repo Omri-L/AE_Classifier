@@ -127,8 +127,7 @@ class ModelTrainer:
         if self.architecture_type in COMBINED_ARCH:
             if checkpoint_combined is not None:
                 modelCheckpoint = torch.load(checkpoint_combined, map_location=self.device)
-                self.model.classifier.load_state_dict(get_state_dict(modelCheckpoint))
-                self.model.auto_encoder.load_state_dict(get_state_dict(modelCheckpoint))
+                self.model.load_state_dict(get_state_dict(modelCheckpoint))
                 if optimizer is not None:
                     optimizer.load_state_dict(modelCheckpoint['optimizer'])
                 loss_train_list = modelCheckpoint['loss_train_list']
