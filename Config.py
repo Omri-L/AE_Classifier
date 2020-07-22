@@ -13,6 +13,7 @@ import PIL
 import matplotlib.pyplot as plt
 import os
 import gc
+import xlsxwriter
 
 RESNET18 = 'RES-NET-18'
 BASIC_AE = 'BASIC_AE'
@@ -22,7 +23,8 @@ ATTENTION_AE_RESNET18 = 'IMPROVED-AE-RES-NET-18'
 COMBINED_ARCH = [AE_RESNET18, ATTENTION_AE_RESNET18]
 AE_ARCH = [BASIC_AE, ATTENTION_AE]
 CLASSIFIER_ARCH = [RESNET18]
-DATA_PARALLEL = True
+DATA_PARALLEL = False
+NUM_CLASSES = 14
 
 PATH_IMG_DIR = r'.\database'
 PATH_FILE_TRAIN = r".\Dataset_files\train_1.txt"

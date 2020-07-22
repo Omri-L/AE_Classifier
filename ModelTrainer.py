@@ -3,6 +3,16 @@ from ClassifierModels import Resnet18
 from AEClassifierModels import BasicAutoEncoder, AE_Resnet18
 
 
+class parameters():
+    def __init__(self, lambda_loss=0.9, lr = 0.0001, weight_decay = 1e-5, decay_factor = 0.1, decay_patience = 5, batch_size=64, max_epoch=30):
+        self.lr = lr
+        self.weight_decay = weight_decay
+        self.decay_factor = decay_factor
+        self.decay_patience = decay_patience
+        self.lambda_loss = lambda_loss
+        self.batch_size = batch_size
+        self.max_epoch = max_epoch
+
 def data_augmentations(resize_target, crop_target, normalization_vec, rotation_angle=None, center_crop=False,
                        flip=True):
     transformList = []
@@ -76,16 +86,15 @@ class ModelTrainer:
     # ---- transCrop - size of the cropped image
     # ---- launchTimestamp - date/time, used to assign unique name for the checkpoint file
     # ---- checkpoint - if not None loads the model and continues training
-    def __init__(self, architecture_type, num_of_input_channels, is_backbone_trained, num_classes, device,
-                 lambda_loss=0.9, lr = 0.0001, weight_decay = 1e-5, decay_factor = 0.1, decay_patience = 5):
+    def __init__(self, architecture_type, num_of_input_channels, is_backbone_trained, num_classes, device,run_parameters=parameters()):
         self.architecture_type = architecture_type
         self.device = device
         self.num_classes = num_classes
         self.num_of_input_channels = num_of_input_channels
-        self.lr = lr
-        self.weight_decay = weight_decay
-        self.decay_factor = decay_factor
-        self.decay_patience = decay_patience
+        self.lr = run_parameters.lr
+        self.weight_decay = run_parameters.weight_decay
+        self.decay_factor = run_parameters.decay_factor
+        self.decay_patience = run_parameters.decay_patience
         # -------------------- SETTINGS: NETWORK ARCHITECTURE
         if self.architecture_type not in COMBINED_ARCH:
             if self.architecture_type in CLASSIFIER_ARCH:
@@ -113,7 +122,7 @@ class ModelTrainer:
             else:
                 print(self.architecture_type, ' not supported in model trainer!')
                 exit()
-            self.lambda_loss = lambda_loss
+            self.lambda_loss = run_parameters.lambda_loss
             if DATA_PARALLEL:
                 self.model.classifier = torch.nn.DataParallel(self.model.classifier).to(self.device)
                 self.model.auto_encoder = torch.nn.DataParallel(self.model.auto_encoder).to(self.device)
@@ -166,20 +175,25 @@ class ModelTrainer:
         return loss_train_list, loss_validation_list, init_epoch, decay, lr
 
     def loss(self, varOutput, varTarget, varInput):
-        if self.lambda_loss == 0:
-            return self.mse_loss(varOutput, varInput)
-        elif self.lambda_loss == 1:
-            return self.bce_loss(varOutput, varTarget)
-        else:
-            return self.lambda_loss * self.bce_loss(varOutput[1], varTarget) + (1 - self.lambda_loss) * self.mse_loss(
-                varOutput[0], varInput)
+        if self.architecture_type in AE_ARCH:
+            curr_loss = self.mse_loss(varOutput, varInput)
+            display_loss = curr_loss.item()
+        elif self.architecture_type in CLASSIFIER_ARCH:
+            curr_loss = self.bce_loss(varOutput, varTarget)
+            display_loss = curr_loss.item()
+        elif self.architecture_type in COMBINED_ARCH:
+            curr_loss1 = self.mse_loss(varOutput[0], varInput)
+            curr_loss2 = self.bce_loss(varOutput[1], varTarget)
+            display_loss = curr_loss2.item()
+            curr_loss = self.lambda_loss * curr_loss2 + (1 - self.lambda_loss) * curr_loss1
+        return curr_loss, display_loss
 
     def run_batch(self, input_img, target_label):
         varInput = torch.autograd.Variable(input_img).to(self.device)
         varTarget = torch.autograd.Variable(target_label).to(self.device)
         varOutput = self.model(varInput)
-        loss_value = self.loss(varOutput, varTarget, varInput)
-        return loss_value, varOutput
+        loss_value, display_loss = self.loss(varOutput, varTarget, varInput)
+        return loss_value, display_loss, varOutput
 
     def compute_AUROC(self, gt_data, prediction):
         """
@@ -206,8 +220,8 @@ class ModelTrainer:
         loss_value_mean = 0
         for batch_id, (input_img, target_label) in enumerate(data_loader):
             # target_label = target_label.to(self.device, non_blocking=True)
-            loss_value, _ = self.run_batch(input_img, target_label)
-            loss_value_mean += loss_value.item()
+            loss_value, display_loss, _ = self.run_batch(input_img, target_label)
+            loss_value_mean += display_loss
             optimizer.zero_grad()
             loss_value.backward()
             optimizer.step()
@@ -232,7 +246,7 @@ class ModelTrainer:
                 if np.mod(batch_id, 10) == 0:
                     print('.', end="", flush=True)
                 target_label = target_label.to(self.device, non_blocking=True)
-                loss_value, varOutput = self.run_batch(input_img, target_label)
+                loss_value, display_loss, varOutput = self.run_batch(input_img, target_label)
                 if self.architecture_type not in AE_ARCH:
                     if self.architecture_type in CLASSIFIER_ARCH:
                         predictions = varOutput
@@ -244,7 +258,7 @@ class ModelTrainer:
                     out_pred = torch.cat((out_pred, out_mean.data), 0)
 
                 loss_tensor_mean += loss_value
-                loss_val += loss_value.item()
+                loss_val += display_loss
                 loss_val_norm += 1
 
         if self.architecture_type not in AE_ARCH:
@@ -259,7 +273,7 @@ class ModelTrainer:
     def train(self, path_img_dir, path_file_train, path_file_validation, batch_size,
               max_epochs, trans_resize_size, trans_crop_size, trans_rotation_angle, launch_timestamp,
               checkpoint_classifier, checkpoint_encoder, checkpoint_combined):
-        s = time.time()
+
         # -------------------- SETTINGS: DATA AUGMENTATION
         if self.architecture_type == 'RES-NET-18':
             normalization_vec = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
@@ -279,7 +293,7 @@ class ModelTrainer:
 
         dataLoader_train = DataLoader(dataset=dataset_train, batch_size=batch_size,
                                       shuffle=True, num_workers=8, pin_memory=True)
-        dataLoader_validation = DataLoader(dataset=dataset_validation, batch_size=512,
+        dataLoader_validation = DataLoader(dataset=dataset_validation, batch_size=batch_size,
                                            shuffle=False, num_workers=8, pin_memory=True)
 
         # -------------------- SETTINGS: OPTIMIZER & SCHEDULER  # TODO: add parameters of the optimizer
@@ -292,8 +306,23 @@ class ModelTrainer:
         # ---- TRAIN THE NETWORK
         min_loss = 100000
 
-        print('init timing: ', time.time() - s)
 
+        print('Run params: lr ', self.lr, ' weight decay ', self.weight_decay, ' patience ', self.decay_patience,
+              ' lambda loss ', self.lambda_loss)
+        s = time.time()
+        loss_validation, loss_validation_tensor, auroc_mean = self.epoch_validation(dataLoader_validation)
+        print('val epoch time: ', time.time() - s)
+        torch.save({'model_type': self.architecture_type,
+                    'epoch': 0,
+                    'state_dict': self.model.state_dict(),
+                    'best_loss': min_loss,
+                    'optimizer': optimizer.state_dict(),
+                    'loss_train_list': loss_train_list,
+                    'loss_validation_list': loss_validation_list},
+                   'm-' + self.architecture_type + '-' + launch_timestamp + '.pth.tar')
+        print("-------> EpochID: {}/{}, mean validation loss: {}, AUROC mean: {}".format(init_epoch,
+                                                                                         init_epoch + max_epochs,
+                                                                                         loss_validation, auroc_mean))
         for epoch_id in range(0, max_epochs):
             timestampTime = time.strftime("%H%M%S")
             timestampDate = time.strftime("%d%m%Y")
@@ -308,8 +337,7 @@ class ModelTrainer:
                                                                         init_epoch + max_epochs, loss_train))
             print("-------> EpochID: {}/{}, mean validation loss: {}, AUROC mean: {}".format(init_epoch + epoch_id + 1,
                                                                                              init_epoch + max_epochs,
-                                                                                             loss_validation,auroc_mean),
-                  auroc_mean)
+                                                                                             loss_validation,auroc_mean))
             loss_train_list.append(loss_train)
             loss_validation_list.append(loss_validation)
 
