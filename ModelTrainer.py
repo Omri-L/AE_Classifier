@@ -1,5 +1,6 @@
 from Config import *
 from ClassifierModels import Resnet18
+from AttentionUnetModel import AttentionUnet2D
 from AEClassifierModels import BasicAutoEncoder, AE_Resnet18, AttentionUnetResnet18
 
 
@@ -108,6 +109,8 @@ class ModelTrainer:
             elif self.architecture_type in AE_ARCH:
                 if self.architecture_type == 'BASIC_AE':
                     self.model = BasicAutoEncoder().to(self.device)
+                elif self.architecture_type == 'ATTENTION_AE':
+                    self.model = AttentionUnet2D().to(self.device)
                 else:
                     print(self.architecture_type, ' not supported in model trainer!')
                     exit()
@@ -130,8 +133,6 @@ class ModelTrainer:
                 self.model.classifier = torch.nn.DataParallel(self.model.classifier).to(self.device)
                 self.model.auto_encoder = torch.nn.DataParallel(self.model.auto_encoder).to(self.device)
 
-        # elif self.architecture_type == 'ATTENTION_AE_RES-NET-18':
-        #     self.model = Attention_AE_Resnet18(num_classes, is_backbone_trained).to(self.device)
         self.bce_loss = torch.nn.BCELoss(reduction='mean')
         self.mse_loss = torch.nn.MSELoss(reduction='mean')
 
@@ -179,7 +180,7 @@ class ModelTrainer:
 
     def loss(self, varOutput, varTarget, varInput):
         if self.architecture_type in AE_ARCH:
-            curr_loss = self.mse_loss(varOutput, varInput)
+            curr_loss = self.mse_loss(varOutput[1], varInput)
             display_loss = curr_loss.item()
         elif self.architecture_type in CLASSIFIER_ARCH:
             curr_loss = self.bce_loss(varOutput, varTarget)
