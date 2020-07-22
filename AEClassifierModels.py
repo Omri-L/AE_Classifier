@@ -90,12 +90,12 @@ class AttentionUnetResnet18(nn.Module):
 
         self.num_classes = num_classes
         self.normalize = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        self.attention_unet = AttentionUnet2D()
+        self.auto_encoder = AttentionUnet2D()
         self.classifier = Resnet18(num_classes=self.num_classes, is_trained=is_backbone_trained)
 
     def forward(self, x):
 
-        encoder_output, decoder_output = self.attention_unet(x)
+        encoder_output, decoder_output = self.auto_encoder(x)
         # encoder_output = Relu1.apply(encoder_output)
         encoder_output = torch.sigmoid(encoder_output)
 
