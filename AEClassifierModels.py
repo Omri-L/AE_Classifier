@@ -82,6 +82,7 @@ class AE_Resnet18(nn.Module):
 
         return decoder_output, classifier_output
 
+
 class AttentionUnetResnet18(nn.Module):
 
     def __init__(self, num_classes, is_backbone_trained=True):
@@ -90,13 +91,11 @@ class AttentionUnetResnet18(nn.Module):
         self.num_classes = num_classes
         self.normalize = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         self.attention_unet = AttentionUnet2D()
-        self.encoder_output = nn.Conv2d(32, 1, 1)
         self.classifier = Resnet18(num_classes=self.num_classes, is_trained=is_backbone_trained)
 
     def forward(self, x):
 
         encoder_output, decoder_output = self.attention_unet(x)
-        encoder_output = self.encoder_output(encoder_output)
         # encoder_output = Relu1.apply(encoder_output)
         encoder_output = torch.sigmoid(encoder_output)
 
