@@ -13,6 +13,7 @@ class parameters():
         self.batch_size = batch_size
         self.max_epoch = max_epoch
 
+
 def data_augmentations(resize_target, crop_target, normalization_vec, rotation_angle=None, center_crop=False,
                        flip=True):
     transformList = []
@@ -118,7 +119,7 @@ class ModelTrainer:
                 self.model = torch.nn.DataParallel(self.model).to(self.device)
         else:
             if self.architecture_type == 'AE-RES-NET-18':
-                self.model = AE_Resnet18(self.num_classes, is_backbone_trained, None, None).to(self.device)
+                self.model = AE_Resnet18(self.num_classes, is_backbone_trained).to(self.device)
             else:
                 print(self.architecture_type, ' not supported in model trainer!')
                 exit()
