@@ -137,6 +137,7 @@ class ModelTrainer:
         self.mse_loss = torch.nn.MSELoss(reduction='mean')
 
     def load_checkpoint(self, checkpoint_classifier, checkpoint_encoder, checkpoint_combined, optimizer=None):
+        modelCheckpoint = None
         if self.architecture_type in COMBINED_ARCH:
             if checkpoint_combined is not None:
                 modelCheckpoint = torch.load(checkpoint_combined, map_location=self.device)
@@ -174,8 +175,12 @@ class ModelTrainer:
                 loss_train_list = []
                 loss_validation_list = []
                 init_epoch = 0
-        decay = modelCheckpoint['optimizer']['param_groups'][0]['weight_decay']
-        lr = modelCheckpoint['optimizer']['param_groups'][0]['lr']
+        if modelCheckpoint is not None:
+            decay = modelCheckpoint['optimizer']['param_groups'][0]['weight_decay']
+            lr = modelCheckpoint['optimizer']['param_groups'][0]['lr']
+        else:
+            decay = 0
+            lr = 0
         return loss_train_list, loss_validation_list, init_epoch, decay, lr
 
     def loss(self, varOutput, varTarget, varInput):
@@ -305,7 +310,8 @@ class ModelTrainer:
         scheduler = ReduceLROnPlateau(optimizer, factor=self.decay_factor, patience=self.decay_patience, mode='min', verbose=True)
 
         # -------------------- LOAD CHECKPOINT
-        loss_train_list, loss_validation_list, init_epoch,_,_ = self.load_checkpoint(checkpoint_classifier, checkpoint_encoder, checkpoint_combined, optimizer)
+        loss_train_list, loss_validation_list, init_epoch,_,_ = \
+            self.load_checkpoint(checkpoint_classifier, checkpoint_encoder, checkpoint_combined, optimizer)
 
         # ---- TRAIN THE NETWORK
         min_loss = 100000
