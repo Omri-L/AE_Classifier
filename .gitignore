@@ -1,1 +1,5 @@
 database
+.idea
+__pycache__
+*.tar
+*.png
