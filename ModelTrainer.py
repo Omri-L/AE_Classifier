@@ -114,7 +114,7 @@ class ModelTrainer:
                 else:
                     print(self.architecture_type, ' not supported in model trainer!')
                     exit()
-                self.lambda_loss = 0  # Only reconstruction
+                self.lambda_loss = run_parameters.lambda_loss  # Only reconstruction
             else:
                 print(self.architecture_type, ' not in any arch group! add to config file!')
                 exit()
@@ -185,7 +185,11 @@ class ModelTrainer:
 
     def loss(self, varOutput, varTarget, varInput):
         if self.architecture_type in AE_ARCH:
-            curr_loss = self.mse_loss(varOutput[1], varInput)
+            curr_loss1 = self.mse_loss(varOutput[1], varInput)
+            varInputDown = torch.nn.functional.interpolate(varInput, mode='bilinear', align_corners=True,
+                                                           scale_factor=0.25)
+            curr_loss2 = self.mse_loss(varOutput[0], varInputDown)
+            curr_loss = self.lambda_loss * curr_loss1 + (1-self.lambda_loss)*curr_loss2
             display_loss = curr_loss.item()
         elif self.architecture_type in CLASSIFIER_ARCH:
             curr_loss = self.bce_loss(varOutput, varTarget)
@@ -275,6 +279,21 @@ class ModelTrainer:
             auroc_mean = np.array(auroc_individual).mean()
         else:
             auroc_mean = 0
+            # fig, axs = plt.subplots(1, 3, figsize=(10, 3))
+            # axs[0].imshow(input_img[0, 0].detach().cpu().numpy())
+            # axs[0].set_title("input")
+            # axs[1].imshow(varOutput[0][0,0].detach().cpu().numpy())
+            # axs[1].set_title("decoder_output")
+            # axs[2].imshow(varOutput[1][0,0].detach().cpu().numpy())
+            # axs[2].set_title("encoder_output_ch0")
+            # num = 0
+            # name = './test'
+            # fname = name+str(num)
+            # while os.path.isfile(fname+'.png'):
+            #     num+=1
+            #     fname = name + str(num)
+            # fig.savefig(fname, dpi=100)
+            # plt.close('all')
         out_loss = loss_val / loss_val_norm
         loss_tensor_mean = loss_tensor_mean / loss_val_norm
         return out_loss, loss_tensor_mean, auroc_mean
