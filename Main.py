@@ -3,8 +3,8 @@ from ModelTrainer import *
 
 def main():
 
-    # batch_run_train(lrs = [1e-3, 1e-4, 1e-5],weight_decays = [5e-5, 1e-4, 5e-4], lambda_losses = [0, 0.3, 0.6, 0.9, 1])
-    batch_run_train(lrs = [1e-4],weight_decays = [1e-4], lambda_losses = [0, 1], max_epochs=[1])
+    batch_run_train(lrs = [1e-3, 1e-4, 1e-5],weight_decays = [5e-5, 1e-4, 5e-4], lambda_losses = [0, 0.3, 0.6, 0.9, 1])
+    # batch_run_train(lrs = [1e-4],weight_decays = [1e-4], lambda_losses = [0, 1], max_epochs=[1])
 
     # run_parameters = parameters()
     # run_train(run_parameters)

@@ -1,6 +1,6 @@
 from Config import *
 from ClassifierModels import Resnet18
-from AEClassifierModels import BasicAutoEncoder, AE_Resnet18
+from AEClassifierModels import BasicAutoEncoder, AE_Resnet18, AttentionUnetResnet18
 
 
 class parameters():
@@ -119,7 +119,9 @@ class ModelTrainer:
                 self.model = torch.nn.DataParallel(self.model).to(self.device)
         else:
             if self.architecture_type == 'AE-RES-NET-18':
-                self.model = AE_Resnet18(self.num_classes, is_backbone_trained, None, None).to(self.device)
+                self.model = AE_Resnet18(self.num_classes, is_backbone_trained).to(self.device)
+            elif self.architecture_type == 'IMPROVED-AE-RES-NET-18':
+                self.model = AttentionUnetResnet18(self.num_classes, is_backbone_trained).to(self.device)
             else:
                 print(self.architecture_type, ' not supported in model trainer!')
                 exit()
