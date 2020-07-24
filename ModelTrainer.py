@@ -1,7 +1,8 @@
 from Config import *
 from ClassifierModels import Resnet18
 from AttentionUnetModel import AttentionUnet2D
-from AEClassifierModels import ImprovedAutoEncoder, AE_Resnet18, AttentionUnetResnet18
+from AEClassifierModels import BasicAutoEncoder, ImprovedAutoEncoder, \
+    AE_Resnet18, IMPROVED_AE_Resnet18, AttentionUnetResnet18
 
 
 class parameters():
@@ -97,6 +98,7 @@ class ModelTrainer:
         self.weight_decay = run_parameters.weight_decay
         self.decay_factor = run_parameters.decay_factor
         self.decay_patience = run_parameters.decay_patience
+        self.run_parameters = run_parameters
         # -------------------- SETTINGS: NETWORK ARCHITECTURE
         if self.architecture_type not in COMBINED_ARCH:
             if self.architecture_type in CLASSIFIER_ARCH:
@@ -108,13 +110,13 @@ class ModelTrainer:
                 self.lambda_loss = 1  # Only classification
             elif self.architecture_type in AE_ARCH:
                 if self.architecture_type == 'BASIC_AE':
+                    self.model = BasicAutoEncoder().to(self.device)
+                elif self.architecture_type == 'IMPROVED_AE':
                     self.model = ImprovedAutoEncoder().to(self.device)
-                elif self.architecture_type == 'ATTENTION_AE':
-                    self.model = AttentionUnet2D().to(self.device)
                 else:
                     print(self.architecture_type, ' not supported in model trainer!')
                     exit()
-                self.lambda_loss = run_parameters.lambda_loss  # Only reconstruction
+                self.lambda_loss = 0  # Only reconstruction
             else:
                 print(self.architecture_type, ' not in any arch group! add to config file!')
                 exit()
@@ -123,8 +125,10 @@ class ModelTrainer:
         else:
             if self.architecture_type == 'AE-RES-NET-18':
                 self.model = AE_Resnet18(self.num_classes, is_backbone_trained).to(self.device)
-            elif self.architecture_type == 'IMPROVED-AE-RES-NET-18':
+            elif self.architecture_type == 'ATTENTION-AE-RES-NET-18':
                 self.model = AttentionUnetResnet18(self.num_classes, is_backbone_trained).to(self.device)
+            elif self.architecture_type == 'IMPROVED-AE-RES-NET-18':
+                self.model = IMPROVED_AE_Resnet18(self.num_classes, is_backbone_trained).to(self.device)
             else:
                 print(self.architecture_type, ' not supported in model trainer!')
                 exit()
@@ -137,7 +141,6 @@ class ModelTrainer:
         self.mse_loss = torch.nn.MSELoss(reduction='mean')
 
     def load_checkpoint(self, checkpoint_classifier, checkpoint_encoder, checkpoint_combined, optimizer=None):
-        modelCheckpoint = None
         if self.architecture_type in COMBINED_ARCH:
             if checkpoint_combined is not None:
                 modelCheckpoint = torch.load(checkpoint_combined, map_location=self.device)
@@ -175,22 +178,15 @@ class ModelTrainer:
                 loss_train_list = []
                 loss_validation_list = []
                 init_epoch = 0
-        if modelCheckpoint is not None:
-            decay = modelCheckpoint['optimizer']['param_groups'][0]['weight_decay']
-            lr = modelCheckpoint['optimizer']['param_groups'][0]['lr']
+        if 'run_parameters' in modelCheckpoint.keys():
+            run_parameters = modelCheckpoint['run_parameters']
         else:
-            decay = 0
-            lr = 0
-        return loss_train_list, loss_validation_list, init_epoch, decay, lr
+            run_parameters = self.run_parameters
+        return loss_train_list, loss_validation_list, init_epoch, run_parameters
 
     def loss(self, varOutput, varTarget, varInput):
         if self.architecture_type in AE_ARCH:
-            curr_loss1 = self.mse_loss(varOutput[1], varInput)
-            varInputDown = torch.nn.functional.interpolate(varInput, mode='bilinear', align_corners=True,
-                                                           scale_factor=0.25)
-            # curr_loss2 = self.mse_loss(varOutput[0], varInputDown)
-            # curr_loss = self.lambda_loss * curr_loss1 + (1-self.lambda_loss)*curr_loss2
-            curr_loss = curr_loss1
+            curr_loss = self.mse_loss(varOutput, varInput)
             display_loss = curr_loss.item()
         elif self.architecture_type in CLASSIFIER_ARCH:
             curr_loss = self.bce_loss(varOutput, varTarget)
@@ -280,21 +276,6 @@ class ModelTrainer:
             auroc_mean = np.array(auroc_individual).mean()
         else:
             auroc_mean = 0
-            # fig, axs = plt.subplots(1, 3, figsize=(10, 3))
-            # axs[0].imshow(input_img[0, 0].detach().cpu().numpy())
-            # axs[0].set_title("input")
-            # axs[1].imshow(varOutput[0][0,0].detach().cpu().numpy())
-            # axs[1].set_title("decoder_output")
-            # axs[2].imshow(varOutput[1][0,0].detach().cpu().numpy())
-            # axs[2].set_title("encoder_output_ch0")
-            # num = 0
-            # name = './test'
-            # fname = name+str(num)
-            # while os.path.isfile(fname+'.png'):
-            #     num+=1
-            #     fname = name + str(num)
-            # fig.savefig(fname, dpi=100)
-            # plt.close('all')
         out_loss = loss_val / loss_val_norm
         loss_tensor_mean = loss_tensor_mean / loss_val_norm
         return out_loss, loss_tensor_mean, auroc_mean
@@ -321,17 +302,16 @@ class ModelTrainer:
                                               transform=transformSequence_val, num_img_chs=self.num_of_input_channels)
 
         dataLoader_train = DataLoader(dataset=dataset_train, batch_size=batch_size,
-                                      shuffle=True, num_workers=0, pin_memory=True)
+                                      shuffle=True, num_workers=8, pin_memory=True)
         dataLoader_validation = DataLoader(dataset=dataset_validation, batch_size=batch_size,
-                                           shuffle=False, num_workers=0, pin_memory=True)
+                                           shuffle=False, num_workers=8, pin_memory=True)
 
         # -------------------- SETTINGS: OPTIMIZER & SCHEDULER  # TODO: add parameters of the optimizer
         optimizer = optim.Adam(self.model.parameters(), lr=self.lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=self.weight_decay)
         scheduler = ReduceLROnPlateau(optimizer, factor=self.decay_factor, patience=self.decay_patience, mode='min', verbose=True)
 
         # -------------------- LOAD CHECKPOINT
-        loss_train_list, loss_validation_list, init_epoch,_,_ = \
-            self.load_checkpoint(checkpoint_classifier, checkpoint_encoder, checkpoint_combined, optimizer)
+        loss_train_list, loss_validation_list, init_epoch,_ = self.load_checkpoint(checkpoint_classifier, checkpoint_encoder, checkpoint_combined, optimizer)
 
         # ---- TRAIN THE NETWORK
         min_loss = 100000
@@ -348,7 +328,8 @@ class ModelTrainer:
                     'best_loss': min_loss,
                     'optimizer': optimizer.state_dict(),
                     'loss_train_list': loss_train_list,
-                    'loss_validation_list': loss_validation_list},
+                    'loss_validation_list': loss_validation_list,
+                    'run_parameters': self.run_parameters},
                    'm-' + self.architecture_type + '-' + launch_timestamp + '.pth.tar')
         print("-------> EpochID: {}/{}, mean validation loss: {}, AUROC mean: {}".format(init_epoch,
                                                                                          init_epoch + max_epochs,
@@ -383,6 +364,7 @@ class ModelTrainer:
 
             if loss_validation < min_loss:
                 min_loss = loss_validation
+                min_loss_train = loss_train
                 torch.save({'model_type': self.architecture_type,
                             'epoch': epoch_id + 1,
                             'state_dict': self.model.state_dict(),
@@ -398,6 +380,7 @@ class ModelTrainer:
                     loss_validation) + ' lr=' + str(get_lr(optimizer)))
 
         print("finish training!")
+        return min_loss_train,min_loss
 
     # ---- Test the trained network
     # ---- pathDirData - path to the directory that contains images
@@ -432,7 +415,7 @@ class ModelTrainer:
             checkpoint_classifier = path_trained_model
 
         # -------------------- LOAD CHECKPOINT
-        loss_train_list, loss_validation_list, init_epoch, decay, lr = self.load_checkpoint(checkpoint_classifier,
+        loss_train_list, loss_validation_list, init_epoch, run_parameters = self.load_checkpoint(checkpoint_classifier,
                                                                                  checkpoint_encoder,
                                                                                  checkpoint_combined)
         # -------------------- SETTINGS: DATA AUGMENTATION
@@ -449,16 +432,26 @@ class ModelTrainer:
         data_loader_test = DataLoader(dataset=dataset_test, batch_size=batch_size, num_workers=10,
                                       shuffle=False, pin_memory=True)
 
-        _, _, auroc_mean = self.epoch_validation(data_loader_test)
+        loss_test, _, auroc_mean = self.epoch_validation(data_loader_test)
 
 
         ind_name_start = len(path_trained_model) - path_trained_model[::-1].find('\\')
         ind_name_end = path_trained_model.find('.pth')
-        name = path_trained_model[ind_name_start:ind_name_end]
-        plt_data(loss_train_list, loss_validation_list,
-                 name + '_decay_' + str(decay) + '_lr_' + str(lr) + '_AUROCmean_' + str(
-                     np.round(1000 * auroc_mean) / 1000),
-                 True, "")
 
-        print(path_trained_model, ' decay: ', decay, ' lr: ', lr, 'AUROC mean ', auroc_mean)
-        return auroc_mean
+        name = path_trained_model[ind_name_start:ind_name_end]
+        if self.architecture_type in COMBINED_ARCH:
+            plt_data(loss_train_list, loss_validation_list,
+                     name + '_decay_' + str(run_parameters.weight_decay) + '_lr_' + str(run_parameters.lr) + '_lambda_loss_' + str(run_parameters.lambda_loss) + '_AUROCmean_' + str(
+                         np.round(1000 * auroc_mean) / 1000),True, "")
+            print(path_trained_model, ' decay: ', run_parameters.weight_decay, ' lr: ', run_parameters.lr, ' lambda loss: ', run_parameters.lambda_loss, 'AUROC mean ', auroc_mean)
+        elif self.architecture_type in AE_ARCH:
+            plt_data(loss_train_list, loss_validation_list,
+                     name + '_decay_' + str(run_parameters.weight_decay) + '_lr_' + str(run_parameters.lr) + '_lambda_loss_' + str(run_parameters.lambda_loss) ,True, "")
+            print(path_trained_model, ' decay: ', run_parameters.weight_decay, ' lr: ', run_parameters.lr, ' lambda loss: ', run_parameters.lambda_loss)
+        elif self.architecture_type in CLASSIFIER_ARCH:
+            plt_data(loss_train_list, loss_validation_list,
+                     name + '_decay_' + str(run_parameters.weight_decay) + '_lr_' + str(run_parameters.lr) + '_AUROCmean_' + str(
+                         np.round(1000 * auroc_mean) / 1000),True, "")
+            print(path_trained_model, ' decay: ', run_parameters.weight_decay, ' lr: ', run_parameters.lr, 'AUROC mean ', auroc_mean)
+
+        return auroc_mean, loss_test
