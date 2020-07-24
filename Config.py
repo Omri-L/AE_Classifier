@@ -30,3 +30,6 @@ PATH_IMG_DIR = r'.\database'
 PATH_FILE_TRAIN = r".\Dataset_files\train_1.txt"
 PATH_FILE_VALIDATION = r".\Dataset_files\val_1.txt"
 PATH_FILE_TEST = r'.\Dataset_files\test_1.txt'
+# PATH_FILE_TRAIN = r".\Dataset_files\train_one.txt"
+# PATH_FILE_VALIDATION = r".\Dataset_files\val_one.txt"
+# PATH_FILE_TEST = r'.\Dataset_files\test_one.txt'

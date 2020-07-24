@@ -2,6 +2,25 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import init
+from torch.autograd import Function
+
+class Relu1(Function):
+
+    @staticmethod
+    def forward(ctx, input):
+        ctx.save_for_backward(input)
+        # print("fwd:", input[0])
+        return input.clamp(min=0, max=1)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        input, = ctx.saved_tensors
+        grad_input = grad_output.clone()
+        grad_input[input < 0] *= 0.0
+        grad_input[input > 1] *= 0.0
+
+        return grad_input
+
 
 
 def weights_init_normal(m):
@@ -281,7 +300,7 @@ class _GridAttentionBlockND(nn.Module):
 
 class GridAttentionBlock2D(_GridAttentionBlockND):
     def __init__(self, in_channels, gating_channels, inter_channels=None, mode='concatenation',
-                 sub_sample_factor=(2,2,2)):
+                 sub_sample_factor=(2,2)):
         super(GridAttentionBlock2D, self).__init__(in_channels,
                                                    inter_channels=inter_channels,
                                                    gating_channels=gating_channels,
@@ -314,7 +333,7 @@ class AttentionUnet2D(nn.Module):
         # 224x224x64/scale -> 224x224x128/scale
         self.in_center = unetConv2(filters[1], filters[2], self.is_batchnorm)
         # 224x224x128/scale -> 224x224xin
-        self.center = unetConv2(filters[2], in_channels, self.is_batchnorm)
+        self.center = nn.Sequential(nn.Conv2d(filters[2], in_channels, 3, 1, 1))
         # 224x224xin -> 224x224x128/scale
         self.out_center = unetConv2(in_channels, filters[2], self.is_batchnorm)
 
@@ -349,7 +368,7 @@ class AttentionUnet2D(nn.Module):
 
         # convolution for central layer
         in_center = self.in_center(maxpool2)
-        center = self.center(in_center)
+        center = torch.sigmoid(self.center(in_center))
         out_center = self.out_center(center)
 
 

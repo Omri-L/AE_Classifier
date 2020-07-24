@@ -59,20 +59,13 @@ class BasicAutoEncoder(nn.Module):
 
 class AE_Resnet18(nn.Module):
 
-    def __init__(self, num_classes, is_backbone_trained=True,
-                 pre_trained_classifier_path=None, pre_trained_ae_path=None):
+    def __init__(self, num_classes, is_backbone_trained=True):
         super(AE_Resnet18, self).__init__()
 
         self.num_classes = num_classes
         self.normalize = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         self.auto_encoder = BasicAutoEncoder()
         self.classifier = Resnet18(num_classes=self.num_classes, is_trained=is_backbone_trained)
-
-        if pre_trained_ae_path is not None:
-            self.auto_encoder.load_state_dict(torch.load(pre_trained_ae_path))
-
-        if pre_trained_classifier_path is not None:
-            self.classifier.load_state_dict(torch.load(pre_trained_classifier_path))
 
     def forward(self, x):
 
@@ -89,41 +82,20 @@ class AE_Resnet18(nn.Module):
 
         return decoder_output, classifier_output
 
+
 class AttentionUnetResnet18(nn.Module):
 
-    def __init__(self, num_classes, is_backbone_trained=True,
-                 pre_trained_classifier_path=None, pre_trained_ae_path=None):
+    def __init__(self, num_classes, is_backbone_trained=True):
         super(AttentionUnetResnet18, self).__init__()
 
         self.num_classes = num_classes
         self.normalize = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        self.attention_unet = AttentionUnet2D()
-        self.encoder_output = nn.Conv2d(32, 1, 1)
+        self.auto_encoder = AttentionUnet2D()
         self.classifier = Resnet18(num_classes=self.num_classes, is_trained=is_backbone_trained)
-
-        if pre_trained_ae_path is not None:
-            checkpoint = torch.load(pre_trained_ae_path)
-            new_state_dict = OrderedDict()
-
-            for k, v in checkpoint['state_dict'].items():
-                if 'module.' in k:
-                    k = k.replace('module.', '')
-                new_state_dict[k] = v
-            self.attention_unet.load_state_dict(new_state_dict)
-
-        if pre_trained_classifier_path is not None:
-            checkpoint = torch.load(pre_trained_classifier_path)
-            new_state_dict = OrderedDict()
-            for k, v in checkpoint['state_dict'].items():
-                if 'module.' in k:
-                    k = k.replace('module.', '')
-                new_state_dict[k] = v
-            self.classifier.load_state_dict(new_state_dict)
 
     def forward(self, x):
 
-        encoder_output, decoder_output = self.attention_unet(x)
-        encoder_output = self.encoder_output(encoder_output)
+        encoder_output, decoder_output = self.auto_encoder(x)
         # encoder_output = Relu1.apply(encoder_output)
         encoder_output = torch.sigmoid(encoder_output)
 
