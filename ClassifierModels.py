@@ -17,6 +17,23 @@ class Resnet18(nn.Module):
         return x
 
 
+class Resnet18_V2(nn.Module):
+
+    def __init__(self, num_classes, is_trained):
+        super(Resnet18_V2, self).__init__()
+
+        self.resnet18 = torchvision.models.resnet18(pretrained=is_trained)
+
+        kernelCount = self.resnet18.fc.in_features
+        self.resnet18.fc = nn.Sequential(nn.Linear(kernelCount, num_classes))
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        x_logits = self.resnet18(x)
+        x = self.sigmoid(x_logits)
+        return x, x_logits
+
+
 class Resnet34(nn.Module):
 
     def __init__(self, num_classes, is_trained):
