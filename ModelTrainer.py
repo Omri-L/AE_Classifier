@@ -95,6 +95,7 @@ class ModelTrainer:
         self.weight_decay = run_parameters.weight_decay
         self.decay_factor = run_parameters.decay_factor
         self.decay_patience = run_parameters.decay_patience
+        self.run_parameters = run_parameters
         # -------------------- SETTINGS: NETWORK ARCHITECTURE
         if self.architecture_type not in COMBINED_ARCH:
             if self.architecture_type in CLASSIFIER_ARCH:
@@ -170,9 +171,11 @@ class ModelTrainer:
                 loss_train_list = []
                 loss_validation_list = []
                 init_epoch = 0
-        decay = modelCheckpoint['optimizer']['param_groups'][0]['weight_decay']
-        lr = modelCheckpoint['optimizer']['param_groups'][0]['lr']
-        return loss_train_list, loss_validation_list, init_epoch, decay, lr
+        if 'run_parameters' in modelCheckpoint.keys():
+            run_parameters = modelCheckpoint['run_parameters']
+        else:
+            run_parameters = self.run_parameters
+        return loss_train_list, loss_validation_list, init_epoch, run_parameters
 
     def loss(self, varOutput, varTarget, varInput):
         if self.architecture_type in AE_ARCH:
@@ -301,7 +304,7 @@ class ModelTrainer:
         scheduler = ReduceLROnPlateau(optimizer, factor=self.decay_factor, patience=self.decay_patience, mode='min', verbose=True)
 
         # -------------------- LOAD CHECKPOINT
-        loss_train_list, loss_validation_list, init_epoch,_,_ = self.load_checkpoint(checkpoint_classifier, checkpoint_encoder, checkpoint_combined, optimizer)
+        loss_train_list, loss_validation_list, init_epoch,_ = self.load_checkpoint(checkpoint_classifier, checkpoint_encoder, checkpoint_combined, optimizer)
 
         # ---- TRAIN THE NETWORK
         min_loss = 100000
@@ -318,7 +321,8 @@ class ModelTrainer:
                     'best_loss': min_loss,
                     'optimizer': optimizer.state_dict(),
                     'loss_train_list': loss_train_list,
-                    'loss_validation_list': loss_validation_list},
+                    'loss_validation_list': loss_validation_list,
+                    'run_parameters': self.run_parameters},
                    'm-' + self.architecture_type + '-' + launch_timestamp + '.pth.tar')
         print("-------> EpochID: {}/{}, mean validation loss: {}, AUROC mean: {}".format(init_epoch,
                                                                                          init_epoch + max_epochs,
@@ -353,6 +357,7 @@ class ModelTrainer:
 
             if loss_validation < min_loss:
                 min_loss = loss_validation
+                min_loss_train = loss_train
                 torch.save({'model_type': self.architecture_type,
                             'epoch': epoch_id + 1,
                             'state_dict': self.model.state_dict(),
@@ -368,6 +373,7 @@ class ModelTrainer:
                     loss_validation) + ' lr=' + str(get_lr(optimizer)))
 
         print("finish training!")
+        return min_loss_train,min_loss
 
     # ---- Test the trained network
     # ---- pathDirData - path to the directory that contains images
@@ -402,7 +408,7 @@ class ModelTrainer:
             checkpoint_classifier = path_trained_model
 
         # -------------------- LOAD CHECKPOINT
-        loss_train_list, loss_validation_list, init_epoch, decay, lr = self.load_checkpoint(checkpoint_classifier,
+        loss_train_list, loss_validation_list, init_epoch, run_parameters = self.load_checkpoint(checkpoint_classifier,
                                                                                  checkpoint_encoder,
                                                                                  checkpoint_combined)
         # -------------------- SETTINGS: DATA AUGMENTATION
@@ -419,16 +425,26 @@ class ModelTrainer:
         data_loader_test = DataLoader(dataset=dataset_test, batch_size=batch_size, num_workers=10,
                                       shuffle=False, pin_memory=True)
 
-        _, _, auroc_mean = self.epoch_validation(data_loader_test)
+        loss_test, _, auroc_mean = self.epoch_validation(data_loader_test)
 
 
         ind_name_start = len(path_trained_model) - path_trained_model[::-1].find('\\')
         ind_name_end = path_trained_model.find('.pth')
-        name = path_trained_model[ind_name_start:ind_name_end]
-        plt_data(loss_train_list, loss_validation_list,
-                 name + '_decay_' + str(decay) + '_lr_' + str(lr) + '_AUROCmean_' + str(
-                     np.round(1000 * auroc_mean) / 1000),
-                 True, "")
 
-        print(path_trained_model, ' decay: ', decay, ' lr: ', lr, 'AUROC mean ', auroc_mean)
-        return auroc_mean
+        name = path_trained_model[ind_name_start:ind_name_end]
+        if self.architecture_type in COMBINED_ARCH:
+            plt_data(loss_train_list, loss_validation_list,
+                     name + '_decay_' + str(run_parameters.weight_decay) + '_lr_' + str(run_parameters.lr) + '_lambda_loss_' + str(run_parameters.lambda_loss) + '_AUROCmean_' + str(
+                         np.round(1000 * auroc_mean) / 1000),True, "")
+            print(path_trained_model, ' decay: ', run_parameters.weight_decay, ' lr: ', run_parameters.lr, ' lambda loss: ', run_parameters.lambda_loss, 'AUROC mean ', auroc_mean)
+        elif self.architecture_type in AE_ARCH:
+            plt_data(loss_train_list, loss_validation_list,
+                     name + '_decay_' + str(run_parameters.weight_decay) + '_lr_' + str(run_parameters.lr) + '_lambda_loss_' + str(run_parameters.lambda_loss) ,True, "")
+            print(path_trained_model, ' decay: ', run_parameters.weight_decay, ' lr: ', run_parameters.lr, ' lambda loss: ', run_parameters.lambda_loss)
+        elif self.architecture_type in CLASSIFIER_ARCH:
+            plt_data(loss_train_list, loss_validation_list,
+                     name + '_decay_' + str(run_parameters.weight_decay) + '_lr_' + str(run_parameters.lr) + '_AUROCmean_' + str(
+                         np.round(1000 * auroc_mean) / 1000),True, "")
+            print(path_trained_model, ' decay: ', run_parameters.weight_decay, ' lr: ', run_parameters.lr, 'AUROC mean ', auroc_mean)
+
+        return auroc_mean, loss_test
