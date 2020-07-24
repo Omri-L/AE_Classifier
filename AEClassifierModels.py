@@ -57,6 +57,41 @@ class BasicAutoEncoder(nn.Module):
         return encoder_output, decoder_output
 
 
+class BasicAutoEncoder2(nn.Module):
+
+    def __init__(self):
+        super(BasicAutoEncoder2, self).__init__()
+
+        self.encoder = nn.Sequential(
+            # 1x896x896
+            nn.Conv2d(in_channels=1, out_channels=32, kernel_size=5, stride=2, padding=2),
+            nn.ELU(),
+            nn.Conv2d(in_channels=32, out_channels=16, kernel_size=5, stride=2, padding=2),
+            nn.ELU(),
+            # 1X224X224
+            nn.Conv2d(in_channels=16, out_channels=3, kernel_size=1, stride=1, padding=0),
+            # 1x224x224
+        )
+
+        self.decoder = nn.Sequential(
+            # 1x224x224
+            nn.Conv2d(in_channels=3, out_channels=16, kernel_size=3, stride=1, padding=1),
+            nn.PixelShuffle(4),
+            # 1x896x896
+        )
+
+    def forward(self, x):
+        encoder_output = self.encoder(x)
+        # encoder_output = Relu1.apply(encoder_output)
+        encoder_output = torch.sigmoid(encoder_output)
+
+        decoder_output = self.decoder(encoder_output)
+        # decoder_output = Relu1.apply(decoder_output)
+        decoder_output = torch.sigmoid(decoder_output)
+
+        return encoder_output, decoder_output
+
+
 class AE_Resnet18(nn.Module):
 
     def __init__(self, num_classes, is_backbone_trained=True):
@@ -64,7 +99,7 @@ class AE_Resnet18(nn.Module):
 
         self.num_classes = num_classes
         self.normalize = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        self.auto_encoder = BasicAutoEncoder()
+        self.auto_encoder = BasicAutoEncoder2()
         self.classifier = Resnet18(num_classes=self.num_classes, is_trained=is_backbone_trained)
 
     def forward(self, x):

@@ -1,7 +1,7 @@
 from Config import *
 from ClassifierModels import Resnet18
 from AttentionUnetModel import AttentionUnet2D
-from AEClassifierModels import BasicAutoEncoder, AE_Resnet18, AttentionUnetResnet18
+from AEClassifierModels import BasicAutoEncoder2, AE_Resnet18, AttentionUnetResnet18
 
 
 class parameters():
@@ -108,7 +108,7 @@ class ModelTrainer:
                 self.lambda_loss = 1  # Only classification
             elif self.architecture_type in AE_ARCH:
                 if self.architecture_type == 'BASIC_AE':
-                    self.model = BasicAutoEncoder().to(self.device)
+                    self.model = BasicAutoEncoder2().to(self.device)
                 elif self.architecture_type == 'ATTENTION_AE':
                     self.model = AttentionUnet2D().to(self.device)
                 else:
@@ -188,8 +188,9 @@ class ModelTrainer:
             curr_loss1 = self.mse_loss(varOutput[1], varInput)
             varInputDown = torch.nn.functional.interpolate(varInput, mode='bilinear', align_corners=True,
                                                            scale_factor=0.25)
-            curr_loss2 = self.mse_loss(varOutput[0], varInputDown)
-            curr_loss = self.lambda_loss * curr_loss1 + (1-self.lambda_loss)*curr_loss2
+            # curr_loss2 = self.mse_loss(varOutput[0], varInputDown)
+            # curr_loss = self.lambda_loss * curr_loss1 + (1-self.lambda_loss)*curr_loss2
+            curr_loss = curr_loss1
             display_loss = curr_loss.item()
         elif self.architecture_type in CLASSIFIER_ARCH:
             curr_loss = self.bce_loss(varOutput, varTarget)
@@ -320,9 +321,9 @@ class ModelTrainer:
                                               transform=transformSequence_val, num_img_chs=self.num_of_input_channels)
 
         dataLoader_train = DataLoader(dataset=dataset_train, batch_size=batch_size,
-                                      shuffle=True, num_workers=8, pin_memory=True)
+                                      shuffle=True, num_workers=0, pin_memory=True)
         dataLoader_validation = DataLoader(dataset=dataset_validation, batch_size=batch_size,
-                                           shuffle=False, num_workers=8, pin_memory=True)
+                                           shuffle=False, num_workers=0, pin_memory=True)
 
         # -------------------- SETTINGS: OPTIMIZER & SCHEDULER  # TODO: add parameters of the optimizer
         optimizer = optim.Adam(self.model.parameters(), lr=self.lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=self.weight_decay)
