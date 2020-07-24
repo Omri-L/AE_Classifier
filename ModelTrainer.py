@@ -1,7 +1,7 @@
 from Config import *
 from ClassifierModels import Resnet18
 from AttentionUnetModel import AttentionUnet2D
-from AEClassifierModels import BasicAutoEncoder2, AE_Resnet18, AttentionUnetResnet18
+from AEClassifierModels import ImprovedAutoEncoder, AE_Resnet18, AttentionUnetResnet18
 
 
 class parameters():
@@ -108,7 +108,7 @@ class ModelTrainer:
                 self.lambda_loss = 1  # Only classification
             elif self.architecture_type in AE_ARCH:
                 if self.architecture_type == 'BASIC_AE':
-                    self.model = BasicAutoEncoder2().to(self.device)
+                    self.model = ImprovedAutoEncoder().to(self.device)
                 elif self.architecture_type == 'ATTENTION_AE':
                     self.model = AttentionUnet2D().to(self.device)
                 else:
