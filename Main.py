@@ -143,6 +143,8 @@ def run_test():
 
     architecture_type = AE_RESNET18  # select from: RESNET18, AE_RESNET18, IMPROVED_AE_RESNET18
     is_backbone_pretrained = True
+    num_of_input_channels = 1
+    trans_resize_size = None
     if architecture_type == RESNET18:
         # resize to 256 -> random crop to 224 -> random rotate [-5,5]
         batch_size = 1024
@@ -177,7 +179,7 @@ def run_test():
     modelCheckpoint = torch.load(path_trained_models[best_model])
     decay = modelCheckpoint['optimizer']['param_groups'][0]['weight_decay']
     lr = modelCheckpoint['optimizer']['param_groups'][0]['lr']
-    torch.save(modelCheckpoint,'m-' + modelCheckpoint['model_type'] + '-' + str(decay) + '-' + str(lr) + '.pth.tar' + '-' + str(np.round(1000*auroc_means[best_model])/1000))
+    torch.save(modelCheckpoint,'m-' + modelCheckpoint['model_type'] + '-' + str(decay) + '-' + str(lr) + '-' + str(np.round(10000*auroc_means[best_model])/10000) + '.pth.tar')
 if __name__ == '__main__':
     main()
 
