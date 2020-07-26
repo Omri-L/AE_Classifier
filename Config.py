@@ -28,10 +28,13 @@ CLASSIFIER_ARCH = [RESNET18]
 DATA_PARALLEL = False
 NUM_CLASSES = 14
 
-PATH_IMG_DIR = r'.\database'
-PATH_FILE_TRAIN = r".\Dataset_files\train_1.txt"
-PATH_FILE_VALIDATION = r".\Dataset_files\val_1.txt"
-PATH_FILE_TEST = r'.\Dataset_files\test_1.txt'
+PATH_IMG_DIR = r'D:\DL_MI_project\ChestXRay14\images'
+PATH_FILE_TRAIN = r"D:\DL_MI_project\ChestXRay14\original_split\train_1.txt"
+PATH_FILE_VALIDATION = r"D:\DL_MI_project\ChestXRay14\original_split\val_1.txt"
+PATH_FILE_TEST = r'D:\DL_MI_project\ChestXRay14\original_split\test_1.txt'
+# PATH_FILE_TRAIN = r"D:\DL_MI_project\ChestXRay14\train_only_14_small_for_check.txt"
+# PATH_FILE_VALIDATION = r"D:\DL_MI_project\ChestXRay14\val_only_14_small_for_check.txt"
+# PATH_FILE_TEST = r"D:\DL_MI_project\ChestXRay14\test_final_14_small_for_check.txt"
 # PATH_FILE_TRAIN = r".\Dataset_files\train_one.txt"
 # PATH_FILE_VALIDATION = r".\Dataset_files\val_one.txt"
 # PATH_FILE_TEST = r'.\Dataset_files\test_one.txt'

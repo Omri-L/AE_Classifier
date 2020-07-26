@@ -1,9 +1,9 @@
 from Config import *
-from ClassifierModels import Resnet18
+from ClassifierModels import Resnet18, Resnet18_V2
 from AttentionUnetModel import AttentionUnet2D
 from AEClassifierModels import BasicAutoEncoder, ImprovedAutoEncoder, \
     AE_Resnet18, IMPROVED_AE_Resnet18, AttentionUnetResnet18
-
+from class_balanced_loss import CB_loss
 
 class parameters():
     def __init__(self, lambda_loss=0.9, lr = 0.0001, weight_decay = 1e-5, decay_factor = 0.1, decay_patience = 5, batch_size=64, max_epoch=30):
@@ -99,11 +99,13 @@ class ModelTrainer:
         self.decay_factor = run_parameters.decay_factor
         self.decay_patience = run_parameters.decay_patience
         self.run_parameters = run_parameters
+        self.num_sample_per_label_train = []
+        self.num_sample_per_label_val = []
         # -------------------- SETTINGS: NETWORK ARCHITECTURE
         if self.architecture_type not in COMBINED_ARCH:
             if self.architecture_type in CLASSIFIER_ARCH:
                 if self.architecture_type == 'RES-NET-18':
-                    self.model = Resnet18(self.num_classes, is_backbone_trained).to(self.device)
+                    self.model = Resnet18_V2(self.num_classes, is_backbone_trained).to(self.device)
                 else:
                     print(self.architecture_type, ' not supported in model trainer!')
                     exit()
@@ -141,6 +143,7 @@ class ModelTrainer:
         self.mse_loss = torch.nn.MSELoss(reduction='mean')
 
     def load_checkpoint(self, checkpoint_classifier, checkpoint_encoder, checkpoint_combined, optimizer=None):
+        modelCheckpoint = None
         if self.architecture_type in COMBINED_ARCH:
             if checkpoint_combined is not None:
                 modelCheckpoint = torch.load(checkpoint_combined, map_location=self.device)
@@ -178,32 +181,56 @@ class ModelTrainer:
                 loss_train_list = []
                 loss_validation_list = []
                 init_epoch = 0
-        if 'run_parameters' in modelCheckpoint.keys():
-            run_parameters = modelCheckpoint['run_parameters']
+        if modelCheckpoint is not None:
+            if 'run_parameters' in modelCheckpoint.keys():
+                run_parameters = modelCheckpoint['run_parameters']
+            else:
+                run_parameters = self.run_parameters
         else:
             run_parameters = self.run_parameters
         return loss_train_list, loss_validation_list, init_epoch, run_parameters
 
-    def loss(self, varOutput, varTarget, varInput):
+    def loss(self, varOutput, varTarget, varInput, train=False):
         if self.architecture_type in AE_ARCH:
             curr_loss = self.mse_loss(varOutput, varInput)
             display_loss = curr_loss.item()
         elif self.architecture_type in CLASSIFIER_ARCH:
-            curr_loss = self.bce_loss(varOutput, varTarget)
+            # curr_loss = self.bce_loss(varOutput, varTarget)
+            beta = 0.9999
+            gamma = 2
+            loss_type = "sigmoid"
+            if train:
+                samples_per_cls = self.num_sample_per_label_train
+            else:
+                samples_per_cls = self.num_sample_per_label_val
+            curr_loss = CB_loss(varTarget, varOutput, samples_per_cls, self.num_classes, loss_type, beta, gamma, self.device)
+
             display_loss = curr_loss.item()
         elif self.architecture_type in COMBINED_ARCH:
             curr_loss1 = self.mse_loss(varOutput[0], varInput)
-            curr_loss2 = self.bce_loss(varOutput[1], varTarget)
+            # curr_loss2 = self.bce_loss(varOutput[1], varTarget)
+            beta = 0.9999
+            gamma = 2
+            loss_type = "sigmoid"
+            if train:
+                samples_per_cls = self.num_sample_per_label_train
+            else:
+                samples_per_cls = self.num_sample_per_label_val
+            curr_loss2 = CB_loss(varTarget, varOutput[1], samples_per_cls, self.num_classes, loss_type, beta, gamma, self.device)
+
             display_loss = curr_loss2.item()
             curr_loss = self.lambda_loss * curr_loss2 + (1 - self.lambda_loss) * curr_loss1
+
         return curr_loss, display_loss
 
-    def run_batch(self, input_img, target_label):
+    def run_batch(self, input_img, target_label, train=False):
         varInput = torch.autograd.Variable(input_img).to(self.device)
         varTarget = torch.autograd.Variable(target_label).to(self.device)
         varOutput = self.model(varInput)
-        loss_value, display_loss = self.loss(varOutput, varTarget, varInput)
-        return loss_value, display_loss, varOutput
+        loss_value, display_loss = self.loss(varOutput, varTarget, varInput,train)
+        varOutputNew = torch.sigmoid(varOutput)
+
+        return loss_value, display_loss, varOutputNew
 
     def compute_AUROC(self, gt_data, prediction):
         """
@@ -230,7 +257,7 @@ class ModelTrainer:
         loss_value_mean = 0
         for batch_id, (input_img, target_label) in enumerate(data_loader):
             # target_label = target_label.to(self.device, non_blocking=True)
-            loss_value, display_loss, _ = self.run_batch(input_img, target_label)
+            loss_value, display_loss, _ = self.run_batch(input_img, target_label, train=True)
             loss_value_mean += display_loss
             optimizer.zero_grad()
             loss_value.backward()
@@ -301,10 +328,13 @@ class ModelTrainer:
         dataset_validation = DatasetGenerator(pathImageDirectory=path_img_dir, pathDatasetFile=path_file_validation,
                                               transform=transformSequence_val, num_img_chs=self.num_of_input_channels)
 
+        self.num_sample_per_label_train = dataset_train.num_sample_per_label
+        self.num_sample_per_label_val = dataset_validation.num_sample_per_label
+
         dataLoader_train = DataLoader(dataset=dataset_train, batch_size=batch_size,
-                                      shuffle=True, num_workers=8, pin_memory=True)
+                                      shuffle=True, num_workers=0, pin_memory=True)
         dataLoader_validation = DataLoader(dataset=dataset_validation, batch_size=batch_size,
-                                           shuffle=False, num_workers=8, pin_memory=True)
+                                           shuffle=False, num_workers=0, pin_memory=True)
 
         # -------------------- SETTINGS: OPTIMIZER & SCHEDULER  # TODO: add parameters of the optimizer
         optimizer = optim.Adam(self.model.parameters(), lr=self.lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=self.weight_decay)
@@ -429,9 +459,10 @@ class ModelTrainer:
 
         dataset_test = DatasetGenerator(pathImageDirectory=path_img_dir, pathDatasetFile=path_file_test,
                                         transform=transformSequence, num_img_chs=self.num_of_input_channels)
-        data_loader_test = DataLoader(dataset=dataset_test, batch_size=batch_size, num_workers=10,
+        data_loader_test = DataLoader(dataset=dataset_test, batch_size=batch_size, num_workers=0,
                                       shuffle=False, pin_memory=True)
 
+        self.num_sample_per_label_val = dataset_test.num_sample_per_label
         loss_test, _, auroc_mean = self.epoch_validation(data_loader_test)
 
 

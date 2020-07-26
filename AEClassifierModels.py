@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Function
 import torchvision.transforms as transforms
-from ClassifierModels import Resnet18
+from ClassifierModels import Resnet18, Resnet18_V2
 from AttentionUnetModel import AttentionUnet2D
 from collections import OrderedDict
 import matplotlib.pyplot as plt
@@ -158,7 +158,7 @@ class IMPROVED_AE_Resnet18(nn.Module):
         self.num_classes = num_classes
         self.normalize = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         self.auto_encoder = ImprovedAutoEncoder()
-        self.classifier = Resnet18(num_classes=self.num_classes, is_trained=is_backbone_trained)
+        self.classifier = Resnet18_V2(num_classes=self.num_classes, is_trained=is_backbone_trained)
 
     def forward(self, x):
 

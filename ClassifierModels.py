@@ -30,8 +30,7 @@ class Resnet18_V2(nn.Module):
 
     def forward(self, x):
         x_logits = self.resnet18(x)
-        x = self.sigmoid(x_logits)
-        return x, x_logits
+        return x_logits
 
 
 class Resnet34(nn.Module):

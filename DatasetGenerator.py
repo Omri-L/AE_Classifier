@@ -11,13 +11,15 @@ class DatasetGenerator (Dataset):
     
     #-------------------------------------------------------------------------------- 
     
-    def __init__ (self, pathImageDirectory, pathDatasetFile, transform, num_img_chs=1):
+    def __init__ (self, pathImageDirectory, pathDatasetFile, transform, num_img_chs=1, num_labels=14):
     
         self.listImagePaths = []
         self.listImageLabels = []
         self.transform = transform
         self.num_img_chs = num_img_chs
-    
+        self.num_sample_per_label = [0] * num_labels
+
+
         #---- Open file, get image paths and labels
     
         fileDescriptor = open(pathDatasetFile, "r")
@@ -37,6 +39,8 @@ class DatasetGenerator (Dataset):
                 imagePath = os.path.join(pathImageDirectory, lineItems[0])
                 imageLabel = lineItems[1:]
                 imageLabel = [int(i) for i in imageLabel]
+                for label_idx, label in enumerate(imageLabel):
+                    self.num_sample_per_label[label_idx] += label
                 
                 self.listImagePaths.append(imagePath)
                 self.listImageLabels.append(imageLabel)   
@@ -65,6 +69,9 @@ class DatasetGenerator (Dataset):
     def __len__(self):
         
         return len(self.listImagePaths)
+
+    def get_num_samples_in_label(self, label_idx):
+        return self.num_sample_per_label[label_idx]
     
  #-------------------------------------------------------------------------------- 
     

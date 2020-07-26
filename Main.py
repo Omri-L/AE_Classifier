@@ -3,14 +3,15 @@ from ModelTrainer import *
 
 def main():
 
-    batch_run_train(lrs = [1e-3, 1e-4, 1e-5],weight_decays = [5e-5, 1e-4, 5e-4], lambda_losses = [0, 0.3, 0.6, 0.9, 1])
-    # batch_run_train(lrs = [1e-4],weight_decays = [1e-4], lambda_losses = [0, 1], max_epochs=[1])
+    # batch_run_train(lrs = [1e-3, 1e-4, 1e-5],weight_decays = [5e-5, 1e-4, 5e-4], lambda_losses = [0, 0.3, 0.6, 0.9, 1])
+    batch_run_train(lrs = [1e-4],weight_decays = [5e-4], lambda_losses = [0.9], max_epochs=[20])
 
     # run_parameters = parameters()
     # run_train(run_parameters)
     # run_test()
 
-def batch_run_train(lrs = [1e-4],weight_decays =[1e-5],decay_patiences = [3],lambda_losses = [0.9],decay_factors = [0.1], batch_sizes=[64], max_epochs=[20]):
+def batch_run_train(lrs = [1e-4],weight_decays =[1e-5],decay_patiences = [3],lambda_losses = [0.9],
+                    decay_factors = [0.1], batch_sizes=[8], max_epochs=[20]):
 
     if not os.path.exists(r"./ResultSummary.txt"):
         file1 = open(r"./ResultSummary.txt",'w')
@@ -88,7 +89,7 @@ def run_train(run_parameters):
     # ---- Neural network parameters: type of the network, is it pre-trained
     # ---- on imagenet, number of classes
     # choose from: RESNET18, BASIC_AE, IMPROVED_AE, ATTENTION_AE, AE_RESNET18, IMPROVED_AE_RESNET18, ATTENTION_AE_RESNET18
-    architecture_type = ATTENTION_AE
+    architecture_type = RESNET18
     is_backbone_pretrained = True
 
     # ---- Training settings: batch size, maximum number of epochs
@@ -116,8 +117,8 @@ def run_train(run_parameters):
         trans_rotation_angle = 5
 
     path_saved_model = 'm-' + architecture_type + '-' + launch_timestamp + '.pth.tar'
-    checkpoint_encoder = r"./m-BASIC_AE.pth.tar"
-    checkpoint_classifier = r"./m-RES-NET-18.pth.tar"
+    checkpoint_encoder = None #r"./Test_3_ch_enc_sig_m-BASIC_AE-23072020-235412.pth.tar"
+    checkpoint_classifier = r"./m-balance_loss_RES-NET-18-25072020-113924.pth.tar"
     checkpoint_combined = None
 
     print('Training NN architecture = ', architecture_type)
@@ -142,8 +143,11 @@ def run_test():
         print('Using CPU')
 
     # select from: RESNET18, BASIC_AE, IMPROVED_AE, ATTENTION_AE, AE_RESNET18, IMPROVED_AE_RESNET18, ATTENTION_AE_RESNET18
-    architecture_type = AE_RESNET18
-
+    architecture_type = IMPROVED_AE_RESNET18
+    trans_resize_size = None
+    trans_crop_size = None
+    trans_rotation_angle = None
+    num_of_input_channels = 1
     is_backbone_pretrained = True
     if architecture_type in CLASSIFIER_ARCH:
         # resize to 256 -> random crop to 224 -> random rotate [-5,5]
@@ -162,7 +166,7 @@ def run_test():
 
 
 
-    path_trained_model = r'C:\Users\pazi\Desktop\Uni\BioDeepLearning\1e4\m-RES-NET-18-20072020-073848.pth.tar'
+    path_trained_model = r'./m-IMPROVED-AE-RES-NET-18-25072020-090021.pth.tar'
     # folder_models = r"F:\4e5"
     path_trained_models = [path_trained_model]
     # for f in os.listdir(folder_models):
@@ -173,7 +177,7 @@ def run_test():
     for path_trained_model in path_trained_models:
         model_trainer = ModelTrainer(architecture_type, num_of_input_channels, is_backbone_pretrained, NUM_CLASSES, device)
         auroc_mean, test_loss =model_trainer.test(PATH_IMG_DIR, PATH_FILE_TEST, path_trained_model,
-                            batch_size, trans_resize_size, trans_crop_size)
+                            16, trans_resize_size, trans_crop_size)
         auroc_means.append(auroc_mean)
     best_model = np.argmax(auroc_means)
     modelCheckpoint = torch.load(path_trained_models[best_model])
