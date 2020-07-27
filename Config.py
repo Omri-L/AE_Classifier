@@ -13,7 +13,7 @@ import PIL
 import matplotlib.pyplot as plt
 import os
 import gc
-import xlsxwriter
+
 
 RESNET18 = 'RES-NET-18'
 BASIC_AE = 'BASIC_AE'

@@ -409,6 +409,14 @@ class ModelTrainer:
                 print('Epoch [' + str(epoch_id + 1) + '] [----] [' + timestampEND + '] loss= ' + str(
                     loss_validation) + ' lr=' + str(get_lr(optimizer)))
 
+        torch.save({'model_type': self.architecture_type,
+                    'epoch': epoch_id + 1,
+                    'state_dict': self.model.state_dict(),
+                    'best_loss': min_loss,
+                    'optimizer': optimizer.state_dict(),
+                    'loss_train_list': loss_train_list,
+                    'loss_validation_list': loss_validation_list},
+                   'm-' + self.architecture_type + '-' + launch_timestamp + '_last.pth.tar')
         print("finish training!")
         return min_loss_train,min_loss
 
