@@ -332,10 +332,10 @@ class AttentionUnet2D(nn.Module):
 
         # 224x224x64/scale -> 224x224x128/scale
         self.in_center = unetConv2(filters[1], filters[2], self.is_batchnorm)
-        # 224x224x128/scale -> 224x224xin
-        self.center = nn.Sequential(nn.Conv2d(filters[2], in_channels, 3, 1, 1))
+        # 224x224x128/scale -> 224x224x3
+        self.center = nn.Sequential(nn.Conv2d(filters[2], 3, 3, 1, 1))
         # 224x224xin -> 224x224x128/scale
-        self.out_center = unetConv2(in_channels, filters[2], self.is_batchnorm)
+        self.out_center = unetConv2(3, filters[2], self.is_batchnorm)
 
 
         self.attention2 = GridAttentionBlock2D(in_channels=filters[1], gating_channels=filters[2], inter_channels=None,

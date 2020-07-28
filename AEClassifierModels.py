@@ -95,18 +95,18 @@ class AttentionUnetResnet18(nn.Module):
 
     def forward(self, x):
 
-        encoder_output, decoder_output = self.auto_encoder(x)
+        encoder_output, decoder_output = self.auto_encoder.forward(x)
         # encoder_output = Relu1.apply(encoder_output)
-        encoder_output = torch.sigmoid(encoder_output)
+        # encoder_output = torch.sigmoid(encoder_output)
 
-        bs, c, h, w = encoder_output.shape
-        latent_x = torch.Tensor(bs, 3, h, w).cuda()
+        # bs, c, h, w = encoder_output.shape
+        # latent_x = torch.Tensor(bs, 3, h, w).cuda()
+        #
+        # for img_no in range(bs):
+        #     latent_x[img_no] = encoder_output[img_no]
+        #     latent_x[img_no] = self.normalize(latent_x[img_no])  # broadcasting 1 channel to 3 channels
 
-        for img_no in range(bs):
-            latent_x[img_no] = encoder_output[img_no]
-            latent_x[img_no] = self.normalize(latent_x[img_no])  # broadcasting 1 channel to 3 channels
-
-        classifier_output = self.classifier(latent_x)
+        classifier_output = self.classifier.forward(encoder_output)
 
         return decoder_output, classifier_output
 

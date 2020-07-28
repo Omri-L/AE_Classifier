@@ -3,14 +3,14 @@ from ModelTrainer import *
 
 def main():
 
-    batch_run_train(lrs = [1e-3, 1e-4, 1e-5],weight_decays = [5e-5, 1e-4, 5e-4], lambda_losses = [0, 0.3, 0.6, 0.9, 1])
-    # batch_run_train(lrs = [1e-4],weight_decays = [1e-4], lambda_losses = [0, 1], max_epochs=[1])
+    # batch_run_train(lrs = [1e-3, 1e-4, 1e-5],weight_decays = [5e-5, 1e-4, 5e-4], lambda_losses = [0, 0.3, 0.6, 0.9, 1])
+    batch_run_train(lrs = [1e-3],weight_decays = [1e-5], lambda_losses = [0.9], max_epochs=[100])
 
     # run_parameters = parameters()
     # run_train(run_parameters)
     # run_test()
 
-def batch_run_train(lrs = [1e-4],weight_decays =[1e-5],decay_patiences = [3],lambda_losses = [0.9],decay_factors = [0.1], batch_sizes=[64], max_epochs=[20]):
+def batch_run_train(lrs = [1e-4],weight_decays =[1e-5],decay_patiences = [3],lambda_losses = [0.9],decay_factors = [0.1], batch_sizes=[16], max_epochs=[20]):
 
     if not os.path.exists(r"./ResultSummary.txt"):
         file1 = open(r"./ResultSummary.txt",'w')
@@ -88,7 +88,7 @@ def run_train(run_parameters):
     # ---- Neural network parameters: type of the network, is it pre-trained
     # ---- on imagenet, number of classes
     # choose from: RESNET18, BASIC_AE, AE_RESNET18, ATTENTION_AE, ATTENTION_AE_RESNET18
-    architecture_type = AE_RESNET18
+    architecture_type = ATTENTION_AE_RESNET18
     is_backbone_pretrained = True
 
     # ---- Training settings: batch size, maximum number of epochs
@@ -116,9 +116,9 @@ def run_train(run_parameters):
         trans_rotation_angle = 5
 
     path_saved_model = 'm-' + architecture_type + '-' + launch_timestamp + '.pth.tar'
-    checkpoint_encoder = r"./m-BASIC_AE.pth.tar"
-    checkpoint_classifier = r"./m-RES-NET-18.pth.tar"
-    checkpoint_combined = None
+    checkpoint_encoder = None
+    checkpoint_classifier = None
+    checkpoint_combined = r'./m-IMPROVED-AE-RES-NET-18-26072020-114632.pth.tar'
 
     print('Training NN architecture = ', architecture_type)
     model_trainer = ModelTrainer(architecture_type, num_of_input_channels, is_backbone_pretrained, NUM_CLASSES, device, run_parameters)

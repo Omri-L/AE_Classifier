@@ -127,8 +127,8 @@ class ModelTrainer:
                 exit()
             self.lambda_loss = run_parameters.lambda_loss
             if DATA_PARALLEL:
-                self.model.classifier = torch.nn.DataParallel(self.model.classifier).to(self.device)
-                self.model.auto_encoder = torch.nn.DataParallel(self.model.auto_encoder).to(self.device)
+                self.model = torch.nn.DataParallel(self.model,dim=0).to(self.device)
+                # self.model.auto_encoder = torch.nn.DataParallel(self.model.auto_encoder).to(self.device)
 
         # elif self.architecture_type == 'ATTENTION_AE_RES-NET-18':
         #     self.model = Attention_AE_Resnet18(num_classes, is_backbone_trained).to(self.device)
@@ -136,6 +136,7 @@ class ModelTrainer:
         self.mse_loss = torch.nn.MSELoss(reduction='mean')
 
     def load_checkpoint(self, checkpoint_classifier, checkpoint_encoder, checkpoint_combined, optimizer=None):
+        modelCheckpoint = None
         if self.architecture_type in COMBINED_ARCH:
             if checkpoint_combined is not None:
                 modelCheckpoint = torch.load(checkpoint_combined, map_location=self.device)
@@ -173,10 +174,11 @@ class ModelTrainer:
                 loss_train_list = []
                 loss_validation_list = []
                 init_epoch = 0
-        if 'run_parameters' in modelCheckpoint.keys():
-            run_parameters = modelCheckpoint['run_parameters']
-        else:
-            run_parameters = self.run_parameters
+        run_parameters = self.run_parameters
+        if modelCheckpoint is not None:
+            if 'run_parameters' in modelCheckpoint.keys():
+                run_parameters = modelCheckpoint['run_parameters']
+
         return loss_train_list, loss_validation_list, init_epoch, run_parameters
 
     def loss(self, varOutput, varTarget, varInput):
@@ -278,6 +280,7 @@ class ModelTrainer:
     def train(self, path_img_dir, path_file_train, path_file_validation, batch_size,
               max_epochs, trans_resize_size, trans_crop_size, trans_rotation_angle, launch_timestamp,
               checkpoint_classifier, checkpoint_encoder, checkpoint_combined):
+        cudnn.benchmark = True  # TODO check what is that?
 
         # -------------------- SETTINGS: DATA AUGMENTATION
         if self.architecture_type == 'RES-NET-18':
