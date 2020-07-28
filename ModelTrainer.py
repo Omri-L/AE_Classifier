@@ -228,9 +228,9 @@ class ModelTrainer:
         varTarget = torch.autograd.Variable(target_label).to(self.device)
         varOutput = self.model(varInput)
         loss_value, display_loss = self.loss(varOutput, varTarget, varInput,train)
-        varOutputNew = torch.sigmoid(varOutput)
+        varOutput = (varOutput[0], torch.sigmoid(varOutput[1]))
 
-        return loss_value, display_loss, varOutputNew
+        return loss_value, display_loss, varOutput
 
     def compute_AUROC(self, gt_data, prediction):
         """
@@ -332,9 +332,9 @@ class ModelTrainer:
         self.num_sample_per_label_val = dataset_validation.num_sample_per_label
 
         dataLoader_train = DataLoader(dataset=dataset_train, batch_size=batch_size,
-                                      shuffle=True, num_workers=0, pin_memory=True)
+                                      shuffle=True, num_workers=8, pin_memory=True)
         dataLoader_validation = DataLoader(dataset=dataset_validation, batch_size=batch_size,
-                                           shuffle=False, num_workers=0, pin_memory=True)
+                                           shuffle=False, num_workers=8, pin_memory=True)
 
         # -------------------- SETTINGS: OPTIMIZER & SCHEDULER  # TODO: add parameters of the optimizer
         optimizer = optim.Adam(self.model.parameters(), lr=self.lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=self.weight_decay)
@@ -345,6 +345,7 @@ class ModelTrainer:
 
         # ---- TRAIN THE NETWORK
         min_loss = 100000
+        max_auroc_mean = 0
 
 
         print('Run params: lr ', self.lr, ' weight decay ', self.weight_decay, ' patience ', self.decay_patience,
@@ -392,7 +393,8 @@ class ModelTrainer:
 
             scheduler.step(loss_validation_tensor.item())
 
-            if loss_validation < min_loss:
+            if auroc_mean > max_auroc_mean:
+                max_auroc_mean = auroc_mean
                 min_loss = loss_validation
                 min_loss_train = loss_train
                 torch.save({'model_type': self.architecture_type,
@@ -404,19 +406,20 @@ class ModelTrainer:
                             'loss_validation_list': loss_validation_list},
                            'm-' + self.architecture_type + '-' + launch_timestamp + '.pth.tar')
                 print('Epoch [' + str(epoch_id + 1) + '] [save] [' + timestampEND + '] loss= ' + str(
-                    loss_validation) + ' lr=' + str(get_lr(optimizer)))
+                    loss_validation) + ' lr=' + str(get_lr(optimizer)) + ' auroc mean=' + str(max_auroc_mean))
             else:
                 print('Epoch [' + str(epoch_id + 1) + '] [----] [' + timestampEND + '] loss= ' + str(
-                    loss_validation) + ' lr=' + str(get_lr(optimizer)))
+                    loss_validation) + ' lr=' + str(get_lr(optimizer)) + ' auroc mean=' + str(max_auroc_mean))
 
-        torch.save({'model_type': self.architecture_type,
-                    'epoch': epoch_id + 1,
-                    'state_dict': self.model.state_dict(),
-                    'best_loss': min_loss,
-                    'optimizer': optimizer.state_dict(),
-                    'loss_train_list': loss_train_list,
-                    'loss_validation_list': loss_validation_list},
-                   'm-' + self.architecture_type + '-' + launch_timestamp + '_last.pth.tar')
+            torch.save({'model_type': self.architecture_type,
+                        'epoch': epoch_id + 1,
+                        'state_dict': self.model.state_dict(),
+                        'best_loss': min_loss,
+                        'optimizer': optimizer.state_dict(),
+                        'loss_train_list': loss_train_list,
+                        'loss_validation_list': loss_validation_list},
+                       'm-' + self.architecture_type + '-' + launch_timestamp + '_last.pth.tar')
+
         print("finish training!")
         return min_loss_train,min_loss
 
@@ -467,7 +470,7 @@ class ModelTrainer:
 
         dataset_test = DatasetGenerator(pathImageDirectory=path_img_dir, pathDatasetFile=path_file_test,
                                         transform=transformSequence, num_img_chs=self.num_of_input_channels)
-        data_loader_test = DataLoader(dataset=dataset_test, batch_size=batch_size, num_workers=0,
+        data_loader_test = DataLoader(dataset=dataset_test, batch_size=batch_size, num_workers=8,
                                       shuffle=False, pin_memory=True)
 
         self.num_sample_per_label_val = dataset_test.num_sample_per_label
