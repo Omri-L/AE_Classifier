@@ -92,8 +92,9 @@ def run_train(run_parameters):
     # ---- Neural network parameters: type of the network, is it pre-trained
     # ---- on imagenet, number of classes
     # choose from: RESNET18, BASIC_AE, AE_RESNET18, ATTENTION_AE, ATTENTION_AE_RESNET18
-    architecture_type = ATTENTION_AE_RESNET18
+    architecture_type = RESNET18
     is_backbone_pretrained = True
+    balanced_classifier_loss = False
 
     # ---- Training settings: batch size, maximum number of epochs
     batch_size = run_parameters.batch_size
@@ -120,13 +121,13 @@ def run_train(run_parameters):
         trans_rotation_angle = 5
 
     path_saved_model = 'm-' + architecture_type + '-' + launch_timestamp + '.pth.tar'
-    checkpoint_encoder = None  # r"./m-BASIC_AE.pth.tar"
-    checkpoint_classifier = None  # r"./m-RES-NET-18.pth.tar"
-    checkpoint_combined = r'./m-IMPROVED-AE-RES-NET-18-26072020-164450_last.pth.tar'
+    checkpoint_encoder = None
+    checkpoint_classifier = None
+    checkpoint_combined = None
 
     print('Training NN architecture = ', architecture_type)
-    model_trainer = ModelTrainer(architecture_type, num_of_input_channels, is_backbone_pretrained, NUM_CLASSES, device,
-                                 run_parameters)
+    model_trainer = ModelTrainer(device, architecture_type, num_of_input_channels, is_backbone_pretrained, NUM_CLASSES,
+                                 balanced_classifier_loss, run_parameters)
     train_loss, val_loss = model_trainer.train(PATH_IMG_DIR, PATH_FILE_TRAIN, PATH_FILE_VALIDATION, batch_size,
                                                max_epoch, trans_resize_size, trans_crop_size, trans_rotation_angle,
                                                launch_timestamp,
@@ -149,6 +150,7 @@ def run_test():
 
     architecture_type = AE_RESNET18  # select from: RESNET18, AE_RESNET18, IMPROVED_AE_RESNET18
     is_backbone_pretrained = True
+    balanced_classifier_loss = False
     num_of_input_channels = 1
     trans_resize_size = None
     if architecture_type == RESNET18:
@@ -175,8 +177,8 @@ def run_test():
     #         path_trained_models.append(folder_models+'\\'+f)
     auroc_means = []
     for path_trained_model in path_trained_models:
-        model_trainer = ModelTrainer(architecture_type, num_of_input_channels, is_backbone_pretrained, NUM_CLASSES,
-                                     device)
+        model_trainer = ModelTrainer(device, architecture_type, num_of_input_channels, is_backbone_pretrained,
+                                     NUM_CLASSES, balanced_classifier_loss)
         auroc_mean, test_loss = model_trainer.test(PATH_IMG_DIR, PATH_FILE_TEST, path_trained_model,
                                                    batch_size, trans_resize_size, trans_crop_size)
         auroc_means.append(auroc_mean)
