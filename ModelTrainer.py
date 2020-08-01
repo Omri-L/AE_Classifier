@@ -102,6 +102,7 @@ class ModelTrainer:
         self.decay_patience = run_parameters.decay_patience
         self.run_parameters = run_parameters
         self.b_balanced_classifier_loss = balanced_classifier_loss
+        print("Using balanced loss: " + str(balanced_classifier_loss))
         self.num_sample_per_label_train = []
         self.num_sample_per_label_val = []
         # -------------------- SETTINGS: NETWORK ARCHITECTURE
