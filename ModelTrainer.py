@@ -5,6 +5,7 @@ from AEClassifierModels import BasicAutoEncoder, ImprovedAutoEncoder, \
     AE_Resnet18, IMPROVED_AE_Resnet18, AttentionUnetResnet18
 from class_balanced_loss import CB_loss
 
+
 class parameters():
     def __init__(self, lambda_loss=0.9, lr = 0.0001, weight_decay = 1e-5, decay_factor = 0.1, decay_patience = 5, batch_size=64, max_epoch=30):
         self.lr = lr
@@ -89,8 +90,8 @@ class ModelTrainer:
     # ---- transCrop - size of the cropped image
     # ---- launchTimestamp - date/time, used to assign unique name for the checkpoint file
     # ---- checkpoint - if not None loads the model and continues training
-    def __init__(self, architecture_type, num_of_input_channels, is_backbone_trained, num_classes,
-                 balanced_classifier_loss, device, run_parameters=parameters()):
+    def __init__(self, device, architecture_type, num_of_input_channels, is_backbone_trained=True, num_classes=14,
+                 balanced_classifier_loss=False, run_parameters=parameters()):
         self.architecture_type = architecture_type
         self.device = device
         self.num_classes = num_classes
@@ -192,34 +193,31 @@ class ModelTrainer:
             run_parameters = self.run_parameters
         return loss_train_list, loss_validation_list, init_epoch, run_parameters
 
-    def loss(self, varOutput, varTarget, varInput, train=False):
+    def classifier_loss(self, varOutput, varTarget, is_train=False):
+        if self.b_balanced_classifier_loss:
+            if is_train:
+                samples_per_cls = self.num_sample_per_label_train
+            else:
+                samples_per_cls = self.num_sample_per_label_val
+            classifier_loss = CB_loss(labels=varTarget, logits=varOutput,
+                                samples_per_cls=samples_per_cls, no_of_classes=self.num_classes,
+                                loss_type="sigmoid", beta=0.9999, gamma=2, device=self.device)
+        else:
+            classifier_loss = self.bce_logits_loss(varOutput, varTarget)
+
+        return classifier_loss
+
+    def loss(self, varOutput, varTarget, varInput, is_train=False):
         if self.architecture_type in AE_ARCH:
             curr_loss = self.mse_loss(varOutput, varInput)
             display_loss = curr_loss.item()
         elif self.architecture_type in CLASSIFIER_ARCH:
-            curr_loss = self.bce_logits_loss(varOutput, varTarget)
-            # beta = 0.9999
-            # gamma = 2
-            # loss_type = "sigmoid"
-            # if train:
-            #     samples_per_cls = self.num_sample_per_label_train
-            # else:
-            #     samples_per_cls = self.num_sample_per_label_val
-            # curr_loss = CB_loss(varTarget, varOutput, samples_per_cls, self.num_classes, loss_type, beta, gamma, self.device)
-
+            curr_loss = self.classifier_loss(varOutput, varTarget, is_train)
             display_loss = curr_loss.item()
+
         elif self.architecture_type in COMBINED_ARCH:
             curr_loss1 = self.mse_loss(varOutput[0], varInput)
-            curr_loss2 = self.bce_logits_loss(varOutput[1], varTarget)
-            # beta = 0.9999
-            # gamma = 2
-            # loss_type = "sigmoid"
-            # if train:
-            #     samples_per_cls = self.num_sample_per_label_train
-            # else:
-            #     samples_per_cls = self.num_sample_per_label_val
-            # curr_loss2 = CB_loss(varTarget, varOutput[1], samples_per_cls, self.num_classes, loss_type, beta, gamma, self.device)
-
+            curr_loss2 = self.classifier_loss(varOutput[1], varTarget, is_train)
             display_loss = curr_loss2.item()
             curr_loss = self.lambda_loss * curr_loss2 + (1 - self.lambda_loss) * curr_loss1
 

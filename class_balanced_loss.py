@@ -11,8 +11,6 @@
 
 import numpy as np
 import torch
-import torch.nn.functional as F
-
 
 
 def focal_loss(labels, logits, alpha, gamma):
@@ -71,24 +69,24 @@ def CB_loss(labels, logits, samples_per_cls, no_of_classes, loss_type, beta, gam
     weights = (1.0 - beta) / np.array(effective_num)
     weights = weights / np.sum(weights) * no_of_classes
 
-    labels_one_hot = labels.float() #F.one_hot(labels, no_of_classes).float()
+    labels = labels.float()
 
     weights = torch.tensor(weights).float()
     weights = weights.unsqueeze(0)
-    weights = weights.repeat(labels_one_hot.shape[0], 1).to(device) * labels_one_hot
+    weights = weights.repeat(labels.shape[0], 1).to(device) * labels
     weights = weights.sum(1)
     weights = weights.unsqueeze(1)
-    weights = weights.repeat(1,no_of_classes)
+    weights = weights.repeat(1, no_of_classes)
 
     if loss_type == "focal":
-        cb_loss = focal_loss(labels_one_hot, logits, weights, gamma)
+        cb_loss = focal_loss(labels, logits, weights, gamma)
     elif loss_type == "sigmoid":
         criteria = torch.nn.BCEWithLogitsLoss(pos_weight=weights, reduction='mean')
-        cb_loss = criteria(logits, labels_one_hot)
+        cb_loss = criteria(logits, labels)
     elif loss_type == "softmax":
         pred = logits.softmax(dim=1)
         criteria = torch.nn.BCELoss(pos_weight=weights, reduction='mean')
-        cb_loss = criteria(pred, labels_one_hot)
+        cb_loss = criteria(pred, labels)
     return cb_loss
 
 
