@@ -1,5 +1,5 @@
 from Config import *
-from ClassifierModels import Resnet18, Resnet18_V2
+from ClassifierModels import Resnet18
 from AttentionUnetModel import AttentionUnet2D
 from AEClassifierModels import BasicAutoEncoder, ImprovedAutoEncoder, \
     AE_Resnet18, IMPROVED_AE_Resnet18, AttentionUnetResnet18
@@ -89,7 +89,8 @@ class ModelTrainer:
     # ---- transCrop - size of the cropped image
     # ---- launchTimestamp - date/time, used to assign unique name for the checkpoint file
     # ---- checkpoint - if not None loads the model and continues training
-    def __init__(self, architecture_type, num_of_input_channels, is_backbone_trained, num_classes, device,run_parameters=parameters()):
+    def __init__(self, architecture_type, num_of_input_channels, is_backbone_trained, num_classes,
+                 balanced_classifier_loss, device, run_parameters=parameters()):
         self.architecture_type = architecture_type
         self.device = device
         self.num_classes = num_classes
@@ -99,13 +100,14 @@ class ModelTrainer:
         self.decay_factor = run_parameters.decay_factor
         self.decay_patience = run_parameters.decay_patience
         self.run_parameters = run_parameters
+        self.b_balanced_classifier_loss = balanced_classifier_loss
         self.num_sample_per_label_train = []
         self.num_sample_per_label_val = []
         # -------------------- SETTINGS: NETWORK ARCHITECTURE
         if self.architecture_type not in COMBINED_ARCH:
             if self.architecture_type in CLASSIFIER_ARCH:
                 if self.architecture_type == 'RES-NET-18':
-                    self.model = Resnet18_V2(self.num_classes, is_backbone_trained).to(self.device)
+                    self.model = Resnet18(self.num_classes, is_backbone_trained).to(self.device)
                 else:
                     print(self.architecture_type, ' not supported in model trainer!')
                     exit()
@@ -139,7 +141,7 @@ class ModelTrainer:
                 self.model.classifier = torch.nn.DataParallel(self.model.classifier).to(self.device)
                 self.model.auto_encoder = torch.nn.DataParallel(self.model.auto_encoder).to(self.device)
 
-        self.bce_loss = torch.nn.BCELoss(reduction='mean')
+        self.bce_logits_loss = torch.nn.BCEWithLogitsLoss(reduction='mean')
         self.mse_loss = torch.nn.MSELoss(reduction='mean')
 
     def load_checkpoint(self, checkpoint_classifier, checkpoint_encoder, checkpoint_combined, optimizer=None):
@@ -195,28 +197,28 @@ class ModelTrainer:
             curr_loss = self.mse_loss(varOutput, varInput)
             display_loss = curr_loss.item()
         elif self.architecture_type in CLASSIFIER_ARCH:
-            # curr_loss = self.bce_loss(varOutput, varTarget)
-            beta = 0.9999
-            gamma = 2
-            loss_type = "sigmoid"
-            if train:
-                samples_per_cls = self.num_sample_per_label_train
-            else:
-                samples_per_cls = self.num_sample_per_label_val
-            curr_loss = CB_loss(varTarget, varOutput, samples_per_cls, self.num_classes, loss_type, beta, gamma, self.device)
+            curr_loss = self.bce_logits_loss(varOutput, varTarget)
+            # beta = 0.9999
+            # gamma = 2
+            # loss_type = "sigmoid"
+            # if train:
+            #     samples_per_cls = self.num_sample_per_label_train
+            # else:
+            #     samples_per_cls = self.num_sample_per_label_val
+            # curr_loss = CB_loss(varTarget, varOutput, samples_per_cls, self.num_classes, loss_type, beta, gamma, self.device)
 
             display_loss = curr_loss.item()
         elif self.architecture_type in COMBINED_ARCH:
             curr_loss1 = self.mse_loss(varOutput[0], varInput)
-            # curr_loss2 = self.bce_loss(varOutput[1], varTarget)
-            beta = 0.9999
-            gamma = 2
-            loss_type = "sigmoid"
-            if train:
-                samples_per_cls = self.num_sample_per_label_train
-            else:
-                samples_per_cls = self.num_sample_per_label_val
-            curr_loss2 = CB_loss(varTarget, varOutput[1], samples_per_cls, self.num_classes, loss_type, beta, gamma, self.device)
+            curr_loss2 = self.bce_logits_loss(varOutput[1], varTarget)
+            # beta = 0.9999
+            # gamma = 2
+            # loss_type = "sigmoid"
+            # if train:
+            #     samples_per_cls = self.num_sample_per_label_train
+            # else:
+            #     samples_per_cls = self.num_sample_per_label_val
+            # curr_loss2 = CB_loss(varTarget, varOutput[1], samples_per_cls, self.num_classes, loss_type, beta, gamma, self.device)
 
             display_loss = curr_loss2.item()
             curr_loss = self.lambda_loss * curr_loss2 + (1 - self.lambda_loss) * curr_loss1
@@ -228,8 +230,6 @@ class ModelTrainer:
         varTarget = torch.autograd.Variable(target_label).to(self.device)
         varOutput = self.model(varInput)
         loss_value, display_loss = self.loss(varOutput, varTarget, varInput,train)
-        varOutput = (varOutput[0], torch.sigmoid(varOutput[1]))
-
         return loss_value, display_loss, varOutput
 
     def compute_AUROC(self, gt_data, prediction):
@@ -286,9 +286,9 @@ class ModelTrainer:
                 loss_value, display_loss, varOutput = self.run_batch(input_img, target_label)
                 if self.architecture_type not in AE_ARCH:
                     if self.architecture_type in CLASSIFIER_ARCH:
-                        predictions = varOutput
+                        predictions = torch.sigmoid(varOutput)
                     else:
-                        predictions = varOutput[1]
+                        predictions = torch.sigmoid(varOutput[1])
                     out_gt = torch.cat((out_gt, target_label), 0)
                     bs, c, h, w = input_img.size()
                     out_mean = predictions.view(bs, -1).mean(1)
