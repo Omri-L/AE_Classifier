@@ -3,11 +3,11 @@ from ModelTrainer import *
 
 def main():
     batch_run_train(lrs=[1e-4], weight_decays=[1e-4], lambda_losses=[0.9], max_epochs=[15])
-    # batch_run_train(lrs = [1e-4],weight_decays = [1e-4], lambda_losses = [0, 1], max_epochs=[1])
-
-    # run_parameters = parameters()
+    
+	# run_parameters = parameters()
     # run_train(run_parameters)
-    # run_test()
+    
+	# run_test()
 
 
 def batch_run_train(lrs=[1e-4], weight_decays=[1e-5], decay_patiences=[3], lambda_losses=[0.9], decay_factors=[0.1],
@@ -169,12 +169,7 @@ def run_test():
         trans_crop_size = 896
 
     path_trained_model = r'C:\Users\pazi\Desktop\Uni\BioDeepLearning\1e4\m-RES-NET-18-20072020-073848.pth.tar'
-    # folder_models = r"F:\4e5"
     path_trained_models = [path_trained_model]
-    # for f in os.listdir(folder_models):
-    #     name, ext = os.path.splitext(f)
-    #     if ext == '.tar':
-    #         path_trained_models.append(folder_models+'\\'+f)
     auroc_means = []
     for path_trained_model in path_trained_models:
         model_trainer = ModelTrainer(device, architecture_type, num_of_input_channels, is_backbone_pretrained,
