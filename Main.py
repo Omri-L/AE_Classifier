@@ -92,9 +92,9 @@ def run_train(run_parameters):
     # ---- Neural network parameters: type of the network, is it pre-trained
     # ---- on imagenet, number of classes
     # choose from: RESNET18, BASIC_AE, AE_RESNET18, ATTENTION_AE, ATTENTION_AE_RESNET18
-    architecture_type = RESNET18
+    architecture_type = ATTENTION_AE_RESNET18
     is_backbone_pretrained = True
-    balanced_classifier_loss = False
+    balanced_classifier_loss = True
 
     # ---- Training settings: batch size, maximum number of epochs
     batch_size = run_parameters.batch_size
@@ -115,7 +115,7 @@ def run_train(run_parameters):
     elif architecture_type == BASIC_AE or architecture_type == ATTENTION_AE:
         # random crop to 128
         trans_crop_size = 128
-    elif architecture_type == AE_RESNET18 or architecture_type == ATTENTION_AE_RESNET18:
+    elif architecture_type == AE_RESNET18 or architecture_type == ATTENTION_AE_RESNET18 or architecture_type == IMPROVED_AE_RESNET18:
         # random crop to 896 -> random rotate [-5,5]
         trans_crop_size = 896
         trans_rotation_angle = 5
@@ -150,7 +150,7 @@ def run_test():
 
     architecture_type = AE_RESNET18  # select from: RESNET18, AE_RESNET18, IMPROVED_AE_RESNET18
     is_backbone_pretrained = True
-    balanced_classifier_loss = False
+    balanced_classifier_loss = True
     num_of_input_channels = 1
     trans_resize_size = None
     if architecture_type == RESNET18:
